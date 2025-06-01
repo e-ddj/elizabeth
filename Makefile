@@ -9,6 +9,9 @@ GREEN := \033[1;32m
 RED := \033[1;31m
 NC := \033[0m # No Color
 
+# Detect docker compose command
+DOCKER_COMPOSE := $(shell if command -v docker-compose >/dev/null 2>&1; then echo "docker-compose"; else echo "docker compose"; fi)
+
 help: ## Show this help message
 	@echo "${GREEN}AWS Microservices Management${NC}"
 	@echo ""
@@ -153,6 +156,6 @@ update-shared: ## Update shared code in all services
 	@echo "${YELLOW}Updating shared code...${NC}"
 	@for service in job-enricher job-extractor job-matcher resume-parser; do \
 		echo "Updating $$service..."; \
-		docker-compose exec $$service sh -c "cp -r /app/shared/* /app/" || true; \
+		$(DOCKER_COMPOSE) exec $$service sh -c "cp -r /app/shared/* /app/" || true; \
 	done
 	@echo "${GREEN}Shared code updated${NC}"
