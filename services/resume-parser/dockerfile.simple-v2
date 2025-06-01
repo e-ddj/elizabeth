@@ -1,0 +1,24 @@
+FROM --platform=linux/amd64 python:3.12-slim
+
+WORKDIR /app
+
+# Install system dependencies including curl for health checks
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install basic Python packages
+RUN pip install --no-cache-dir flask gunicorn
+
+# Copy simple app
+COPY simple_resume_app.py ./app.py
+
+# Expose the correct port
+EXPOSE 5004
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PORT=5004
+
+# Use gunicorn
+CMD ["gunicorn", "--bind", "0.0.0.0:5004", "--workers", "1", "--timeout", "120", "app:app"]

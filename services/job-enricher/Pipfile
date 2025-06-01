@@ -1,0 +1,24 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+flask = "3.1.0"
+flask-cors = "*"
+openai = "1.59.9"
+structlog = "*"
+requests = "*"
+ruff = "*"
+pre-commit = "*"
+pytz = "*"
+werkzeug = "*"
+jinja2 = "*"
+python-dotenv = "*"
+
+[dev-packages]
+pytest = "*"
+pytest-cov = "*"
+
+[requires]
+python_version = "3.12"

@@ -1,0 +1,11 @@
+services:
+  app:
+    build: .
+    container_name: micro-service-resume-parser
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    volumes:
+      - .:/app  # <-- This mounts your current directory (host) to /app (container)
+    command: ["flask", "run", "--host=0.0.0.0", "--port=5000"]

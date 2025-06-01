@@ -1,0 +1,221 @@
+x-common-variables: &common-variables
+  PYTHONUNBUFFERED: 1
+  REDIS_HOST: redis
+  SUPABASE_URL: ${SUPABASE_URL:-http://host.docker.internal:54321}
+  SUPABASE_PRIVATE_SERVICE_ROLE_KEY: ${SUPABASE_PRIVATE_SERVICE_ROLE_KEY}
+  OPENAI_API_KEY: ${OPENAI_API_KEY}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  ENVIRONMENT: development
+
+x-healthcheck-defaults: &healthcheck-defaults
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  start_period: 40s
+
+services:
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: aws-microservices-nginx
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+    depends_on:
+      - job-enricher
+      - job-extractor
+      - job-matcher
+      - resume-parser
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "nginx", "-t"]
+    networks:
+      - microservices
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: aws-microservices-redis
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "redis-cli", "ping"]
+    networks:
+      - microservices
+
+  # Job Enricher Service
+  job-enricher:
+    build:
+      context: ./services/job-enricher
+      dockerfile: dockerfile
+      args:
+        - SERVICE_NAME=job-enricher
+    container_name: aws-microservices-job-enricher
+    environment:
+      <<: *common-variables
+      SERVICE_NAME: job-enricher
+      PORT: 5001
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+      WORKER_CLASS: ${WORKER_CLASS:-sync}
+      WORKER_TIMEOUT: 120
+    volumes:
+      - ./services/job-enricher:/app
+      - ./shared:/app/shared
+    command: >
+      gunicorn
+      --config /app/shared/config/gunicorn_config.py
+      --reload
+      --access-logfile -
+      --error-logfile -
+      api.index:app
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+    depends_on:
+      - redis
+    networks:
+      - microservices
+
+  # Job Extractor Service
+  job-extractor:
+    build:
+      context: ./services/job-extractor
+      dockerfile: dockerfile
+      args:
+        - SERVICE_NAME=job-extractor
+    container_name: aws-microservices-job-extractor
+    environment:
+      <<: *common-variables
+      SERVICE_NAME: job-extractor
+      PORT: 5002
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+      WORKER_CLASS: ${WORKER_CLASS:-sync}
+      WORKER_TIMEOUT: 120
+    volumes:
+      - ./services/job-extractor:/app
+      - ./shared:/app/shared
+    command: >
+      gunicorn
+      --config /app/shared/config/gunicorn_config.py
+      --reload
+      --access-logfile -
+      --error-logfile -
+      api.index:app
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "curl", "-f", "http://localhost:5002/health"]
+    depends_on:
+      - redis
+    networks:
+      - microservices
+
+  # Job Matcher Service
+  job-matcher:
+    build:
+      context: ./services/job-matcher
+      dockerfile: dockerfile
+      args:
+        - SERVICE_NAME=job-matcher
+    container_name: aws-microservices-job-matcher
+    environment:
+      <<: *common-variables
+      SERVICE_NAME: job-matcher
+      PORT: 5003
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+      WORKER_CLASS: ${WORKER_CLASS:-sync}
+      WORKER_TIMEOUT: 120
+    volumes:
+      - ./services/job-matcher:/app
+      - ./shared:/app/shared
+    command: >
+      gunicorn
+      --config /app/shared/config/gunicorn_config.py
+      --reload
+      --access-logfile -
+      --error-logfile -
+      api.index:app
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "curl", "-f", "http://localhost:5003/health"]
+    depends_on:
+      - redis
+    networks:
+      - microservices
+
+  # Resume Parser Service
+  resume-parser:
+    build:
+      context: ./services/resume-parser
+      dockerfile: dockerfile
+      args:
+        - SERVICE_NAME=resume-parser
+    container_name: aws-microservices-resume-parser
+    environment:
+      <<: *common-variables
+      SERVICE_NAME: resume-parser
+      PORT: 5004
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+      WORKER_CLASS: ${WORKER_CLASS:-sync}
+      WORKER_TIMEOUT: 120
+    volumes:
+      - ./services/resume-parser:/app
+      - ./shared:/app/shared
+    command: >
+      gunicorn
+      --config /app/shared/config/gunicorn_config.py
+      --reload
+      --access-logfile -
+      --error-logfile -
+      api.index:app
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "curl", "-f", "http://localhost:5004/health"]
+    depends_on:
+      - redis
+    networks:
+      - microservices
+
+  # Monitoring Stack (Prometheus + Grafana)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: aws-microservices-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infrastructure/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - microservices
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: aws-microservices-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./infrastructure/monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./infrastructure/monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - microservices
+
+volumes:
+  redis-data:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  microservices:
+    driver: bridge

@@ -1,0 +1,105 @@
+version: 0.2
+
+# AWS CodeBuild specification for ECS deployment
+# This is an alternative to GitHub Actions/GitLab CI
+
+phases:
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR...
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+      - REPOSITORY_URI=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/microservices
+      - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+      - IMAGE_TAG=${COMMIT_HASH:=latest}
+      
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Building Docker images...
+      
+      # Build all services
+      - |
+        for SERVICE in job-enricher job-extractor job-matcher resume-parser; do
+          echo "Building $SERVICE..."
+          docker build -t $REPOSITORY_URI/$SERVICE:latest \
+            --build-arg SERVICE_NAME=$SERVICE \
+            -f services/$SERVICE/dockerfile \
+            services/$SERVICE
+          docker tag $REPOSITORY_URI/$SERVICE:latest $REPOSITORY_URI/$SERVICE:$IMAGE_TAG
+        done
+      
+      # Build nginx
+      - |
+        if [ ! -f nginx/Dockerfile ]; then
+          cat > nginx/Dockerfile <<EOF
+        FROM nginx:alpine
+        COPY nginx.conf /etc/nginx/nginx.conf
+        COPY conf.d /etc/nginx/conf.d
+        EXPOSE 80
+        CMD ["nginx", "-g", "daemon off;"]
+        EOF
+        fi
+      - docker build -t $REPOSITORY_URI/nginx:latest nginx/
+      - docker tag $REPOSITORY_URI/nginx:latest $REPOSITORY_URI/nginx:$IMAGE_TAG
+      
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - echo Pushing Docker images...
+      
+      # Push all images
+      - |
+        for SERVICE in job-enricher job-extractor job-matcher resume-parser nginx; do
+          echo "Pushing $SERVICE..."
+          docker push $REPOSITORY_URI/$SERVICE:latest
+          docker push $REPOSITORY_URI/$SERVICE:$IMAGE_TAG
+        done
+      
+      # Update ECS services
+      - echo Updating ECS services...
+      - |
+        for SERVICE in job-enricher job-extractor job-matcher resume-parser; do
+          echo "Updating $SERVICE..."
+          
+          # Get current task definition
+          TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition $SERVICE --query taskDefinition)
+          
+          # Update image in task definition
+          NEW_TASK_DEF=$(echo $TASK_DEFINITION | jq --arg IMAGE "$REPOSITORY_URI/$SERVICE:$IMAGE_TAG" '.containerDefinitions[0].image = $IMAGE')
+          NEW_TASK_DEF=$(echo $NEW_TASK_DEF | jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
+          
+          # Register new task definition
+          NEW_TASK_INFO=$(aws ecs register-task-definition --cli-input-json "$NEW_TASK_DEF")
+          NEW_REVISION=$(echo $NEW_TASK_INFO | jq -r '.taskDefinition.revision')
+          
+          # Update service
+          aws ecs update-service \
+            --cluster microservices-cluster \
+            --service $SERVICE \
+            --task-definition ${SERVICE}:${NEW_REVISION} \
+            --force-new-deployment
+          
+          echo "$SERVICE updated to revision $NEW_REVISION"
+        done
+      
+      # Wait for services to stabilize
+      - echo Waiting for services to stabilize...
+      - |
+        for SERVICE in job-enricher job-extractor job-matcher resume-parser; do
+          aws ecs wait services-stable \
+            --cluster microservices-cluster \
+            --services $SERVICE
+          echo "$SERVICE is stable"
+        done
+      
+      - echo All services deployed successfully!
+
+artifacts:
+  files:
+    - '**/*'
+  name: microservices-build-$(date +%Y-%m-%d)
+
+cache:
+  paths:
+    - '/root/.cache/pip/**/*'
+    - '/var/lib/docker/**/*'

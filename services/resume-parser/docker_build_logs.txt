@@ -1,0 +1,36 @@
+resume-parser-microservice  | 2025-05-16 02:48:27,579 | WARNING  | core.user_profile.extract_profile_from_resume:85 - OpenCV not available - face detection will be disabled: No module named 'cv2'
+resume-parser-microservice  | 2025-05-16 02:48:28,252 | INFO     | root:22 - Logging configured with level: INFO
+resume-parser-microservice  | 2025-05-16 02:48:28,253 | INFO     | api.index:29 - {"event": "Registering Flask App", "level": "info", "timestamp": "2025-05-16T02:48:28.252815Z"}
+resume-parser-microservice  | 2025-05-16 02:48:28,256 | INFO     | api.index:39 - {"event": "All blueprints registered successfully", "level": "info", "timestamp": "2025-05-16T02:48:28.256242Z"}
+resume-parser-microservice  |  * Serving Flask app 'api/index.py'
+resume-parser-microservice  |  * Debug mode: on
+resume-parser-microservice  | 2025-05-16 02:48:28,871 | WARNING  | core.user_profile.extract_profile_from_resume:85 - OpenCV not available - face detection will be disabled: No module named 'cv2'
+resume-parser-microservice  | 2025-05-16 02:48:29,316 | INFO     | root:22 - Logging configured with level: INFO
+resume-parser-microservice  | 2025-05-16 02:48:29,316 | INFO     | api.index:29 - {"event": "Registering Flask App", "level": "info", "timestamp": "2025-05-16T02:48:29.316604Z"}
+resume-parser-microservice  | 2025-05-16 02:48:29,318 | INFO     | api.index:39 - {"event": "All blueprints registered successfully", "level": "info", "timestamp": "2025-05-16T02:48:29.318602Z"}
+resume-parser-microservice  | 2025-05-16 02:48:29,323 | WARNING  | werkzeug:97 -  * Debugger is active!
+resume-parser-microservice  | 2025-05-16 02:49:13,229 | INFO     | core.user_profile.extract_profile_from_resume:58 - Attempting to import OpenCV
+resume-parser-microservice  | 2025-05-16 02:49:13,230 | WARNING  | core.user_profile.extract_profile_from_resume:87 - OpenCV not available - face detection will be disabled: No module named 'cv2'
+resume-parser-microservice  | 2025-05-16 02:49:13,698 | INFO     | root:22 - Logging configured with level: INFO
+resume-parser-microservice  | 2025-05-16 02:49:13,698 | INFO     | api.index:29 - {"event": "Registering Flask App", "level": "info", "timestamp": "2025-05-16T02:49:13.698523Z"}
+resume-parser-microservice  | 2025-05-16 02:49:13,701 | INFO     | api.index:39 - {"event": "All blueprints registered successfully", "level": "info", "timestamp": "2025-05-16T02:49:13.701237Z"}
+resume-parser-microservice  | 2025-05-16 02:49:13,707 | WARNING  | werkzeug:97 -  * Debugger is active!
+resume-parser-microservice  | 2025-05-16 02:49:25,281 | INFO     | core.user_profile.extract_profile_from_resume:58 - Attempting to import OpenCV
+resume-parser-microservice  | 2025-05-16 02:49:25,281 | WARNING  | core.user_profile.extract_profile_from_resume:87 - OpenCV not available - face detection will be disabled: No module named 'cv2'
+resume-parser-microservice  | 2025-05-16 02:49:25,752 | INFO     | root:22 - Logging configured with level: INFO
+resume-parser-microservice  | 2025-05-16 02:49:25,753 | INFO     | api.index:29 - {"event": "Registering Flask App", "level": "info", "timestamp": "2025-05-16T02:49:25.752989Z"}
+resume-parser-microservice  | 2025-05-16 02:49:25,755 | INFO     | api.index:39 - {"event": "All blueprints registered successfully", "level": "info", "timestamp": "2025-05-16T02:49:25.755764Z"}
+resume-parser-microservice  |  * Serving Flask app 'api/index.py'
+resume-parser-microservice  |  * Debug mode: on
+resume-parser-microservice  | 2025-05-16 02:49:26,364 | INFO     | core.user_profile.extract_profile_from_resume:58 - Attempting to import OpenCV
+resume-parser-microservice  | 2025-05-16 02:49:26,364 | WARNING  | core.user_profile.extract_profile_from_resume:87 - OpenCV not available - face detection will be disabled: No module named 'cv2'
+resume-parser-microservice  | 2025-05-16 02:49:26,810 | INFO     | root:22 - Logging configured with level: INFO
+resume-parser-microservice  | 2025-05-16 02:49:26,810 | INFO     | api.index:29 - {"event": "Registering Flask App", "level": "info", "timestamp": "2025-05-16T02:49:26.810794Z"}
+resume-parser-microservice  | 2025-05-16 02:49:26,813 | INFO     | api.index:39 - {"event": "All blueprints registered successfully", "level": "info", "timestamp": "2025-05-16T02:49:26.813227Z"}
+resume-parser-microservice  | 2025-05-16 02:49:26,819 | WARNING  | werkzeug:97 -  * Debugger is active!
+resume-parser-microservice  | 2025-05-16 02:49:57,574 | INFO     | core.user_profile.extract_profile_from_resume:58 - Attempting to import OpenCV
+resume-parser-microservice  | 2025-05-16 02:49:57,574 | WARNING  | core.user_profile.extract_profile_from_resume:87 - OpenCV not available - face detection will be disabled: No module named 'cv2'
+resume-parser-microservice  | 2025-05-16 02:49:58,057 | INFO     | root:22 - Logging configured with level: INFO
+resume-parser-microservice  | 2025-05-16 02:49:58,058 | INFO     | api.index:29 - {"event": "Registering Flask App", "level": "info", "timestamp": "2025-05-16T02:49:58.058019Z"}
+resume-parser-microservice  | 2025-05-16 02:49:58,061 | INFO     | api.index:39 - {"event": "All blueprints registered successfully", "level": "info", "timestamp": "2025-05-16T02:49:58.061335Z"}
+resume-parser-microservice  | 2025-05-16 02:49:58,071 | WARNING  | werkzeug:97 -  * Debugger is active!

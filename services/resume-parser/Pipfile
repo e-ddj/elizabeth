@@ -1,0 +1,35 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+flask = "3.1.0"
+supabase = "2.11.0"
+openai = "1.59.9"
+cffi = "==1.17.0" # forced version, remove eventually
+"pdfminer.six" = "20240706"
+structlog = "*"
+requests = "*"
+ruff = "*"
+pre-commit = "*"
+python-docx = "*"
+pytz = "*"
+werkzeug = "*"
+jinja2 = "*"
+docx = "*"
+pillow = "*"
+mammoth = "*"
+PyMuPDF = "*"
+numpy = ">=1.26.0"
+opencv-python-headless = "*"
+# Removed dependencies that were only used by scrapers and resume enhancer:
+# beautifulsoup4, fake-useragent, xhtml2pdf
+
+[dev-packages]
+pytest = "*"
+pytest-cov = "*"
+python-dotenv = '*'
+
+[requires]
+python_version = "3.12"

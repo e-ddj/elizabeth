@@ -1,0 +1,153 @@
+version: '3.8'
+
+# Production overrides for docker-compose.yml
+services:
+  nginx:
+    restart: always
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  redis:
+    restart: always
+    command: redis-server --appendonly yes --maxmemory 1gb --maxmemory-policy allkeys-lru
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  job-enricher:
+    restart: always
+    environment:
+      ENVIRONMENT: production
+      WEB_CONCURRENCY: 4
+      WORKER_CLASS: gevent
+      LOG_LEVEL: WARNING
+    command: >
+      gunicorn
+      --config /app/shared/config/gunicorn_config.py
+      --worker-class gevent
+      --workers 4
+      --worker-connections 1000
+      --max-requests 1000
+      --max-requests-jitter 100
+      --preload
+      api.index:app
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  job-extractor:
+    restart: always
+    environment:
+      ENVIRONMENT: production
+      WEB_CONCURRENCY: 4
+      WORKER_CLASS: gevent
+      LOG_LEVEL: WARNING
+    command: >
+      gunicorn
+      --config /app/shared/config/gunicorn_config.py
+      --worker-class gevent
+      --workers 4
+      --worker-connections 1000
+      --max-requests 1000
+      --max-requests-jitter 100
+      --preload
+      api.index:app
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  job-matcher:
+    restart: always
+    environment:
+      ENVIRONMENT: production
+      WEB_CONCURRENCY: 4
+      WORKER_CLASS: sync  # Keep sync for CPU-bound AI tasks
+      LOG_LEVEL: WARNING
+    command: >
+      gunicorn
+      --config /app/shared/config/gunicorn_config.py
+      --worker-class sync
+      --workers 4
+      --threads 2
+      --max-requests 500
+      --max-requests-jitter 50
+      --preload
+      api.index:app
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  resume-parser:
+    restart: always
+    environment:
+      ENVIRONMENT: production
+      WEB_CONCURRENCY: 4
+      WORKER_CLASS: sync
+      LOG_LEVEL: WARNING
+    command: >
+      gunicorn
+      --config /app/shared/config/gunicorn_config.py
+      --worker-class sync
+      --workers 4
+      --threads 2
+      --max-requests 500
+      --max-requests-jitter 50
+      --preload
+      api.index:app
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Remove monitoring in production (use CloudWatch instead)
+  prometheus:
+    deploy:
+      replicas: 0
+
+  grafana:
+    deploy:
+      replicas: 0
