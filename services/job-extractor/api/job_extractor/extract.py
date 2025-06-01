@@ -4,7 +4,6 @@ from pathlib import Path
 from flask import Blueprint, abort, jsonify, request
 from core.job_extractor.extract_job_data import extract_job_data, extract_job_data_from_file
 from config.log_config import get_logger
-from api.cors_middleware import cors_middleware
 
 # Import Supabase utilities
 try:
@@ -19,7 +18,6 @@ job_extractor_api = Blueprint("job_extractor", __name__)
 
 
 @job_extractor_api.route("/extract", methods=["POST"])
-@cors_middleware
 def job_extractor_endpoint():
     """
     Endpoint to extract structured data from job posting HTML/text.
@@ -81,7 +79,6 @@ def job_extractor_endpoint():
 
 
 @job_extractor_api.route("/extract-from-file", methods=["POST", "OPTIONS"])
-@cors_middleware
 def job_extractor_file_endpoint():
     """
     Endpoint to extract structured data from a job document uploaded to Supabase.

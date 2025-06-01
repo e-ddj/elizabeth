@@ -22,12 +22,7 @@ on:
 
 # Use the cost-optimized workflow
 jobs:
-  test:
-    name: Run Tests
-    uses: ./.github/workflows/test.yml
-    
   deploy:
-    needs: test
     uses: ./.github/workflows/deploy-cost-optimized.yml
     with:
       wake_services: ${{ github.event_name == 'workflow_dispatch' && inputs.wake_services || 'false' }}

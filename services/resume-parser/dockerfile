@@ -35,4 +35,4 @@ ENV PYTHONUNBUFFERED=1
 ENV PORT=5004
 
 # Use gunicorn with dynamic port binding
-CMD gunicorn --bind 0.0.0.0:${PORT:-5004} --workers 1 --timeout 120 api.index:app
+CMD gunicorn --bind 0.0.0.0:${PORT:-5004} --workers 1 --timeout 1800 --graceful-timeout 300 api.index:app

@@ -29,20 +29,12 @@ app = Flask(__name__)
 
 # Enable CORS for all routes with detailed configuration
 # In production, replace "*" with specific allowed origins
-cors_config = {
-    "origins": "*",  # Allow all origins (update for production)
-    "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    "allow_headers": [
-        "Content-Type", "Authorization", "X-Requested-With", "Accept",
-        "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers",
-        "Access-Control-Allow-Methods", "Access-Control-Allow-Origin", 
-        "Access-Control-Allow-Headers", "Access-Control-Allow-Credentials"
-    ],
-    "expose_headers": ["Content-Type", "Authorization"],
-    "supports_credentials": False,  # Set to False when using origins: "*"
-    "max_age": 86400  # 24 hours
-}
-CORS(app, resources={r"/*": cors_config})
+CORS(app, 
+     origins="*", 
+     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+     allow_headers=["Content-Type", "Authorization", "Accept", "Origin"],
+     supports_credentials=False,
+     max_age=86400)
 logger.info("CORS enabled globally with detailed configuration")
 
 # register job extractor API blueprint
