@@ -2,10 +2,17 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install system dependencies including curl for health checks
+# Install system dependencies including Chrome for Selenium
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
+    wget \
+    gnupg \
+    unzip \
+    && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
+    && sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list' \
+    && apt-get update \
+    && apt-get install -y google-chrome-stable \
     && rm -rf /var/lib/apt/lists/*
 
 # Upgrade pip
@@ -26,6 +33,7 @@ EXPOSE 5001
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PORT=5001
+ENV DISPLAY=:99
 
-# Use gunicorn with dynamic port binding
-CMD gunicorn --bind 0.0.0.0:${PORT:-5001} --workers 1 --timeout 120 api.index:app
+# Use gunicorn with dynamic port binding and increased timeout for browser operations
+CMD gunicorn --bind 0.0.0.0:${PORT:-5001} --workers 1 --timeout 300 api.index:app
