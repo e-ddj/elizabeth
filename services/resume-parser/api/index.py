@@ -1,4 +1,5 @@
 from flask import Flask
+from flask_cors import CORS
 from config.log_config import configure_logging, get_logger
 from api.hcp.index import hcp_api_root
 import logging
@@ -25,6 +26,10 @@ if not has_stdout_handler:
 # register main Flask app
 logger.info("Registering Flask App")
 app = Flask(__name__)
+
+# Enable CORS for all origins (update for production)
+CORS(app, resources={r"/*": {"origins": "*", "supports_credentials": False}})
+logger.info("CORS enabled for all endpoints")
 
 # register only the HCP API blueprint
 app.register_blueprint(hcp_api_root, url_prefix="/api/hcp")

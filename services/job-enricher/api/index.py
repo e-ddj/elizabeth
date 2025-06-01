@@ -27,9 +27,9 @@ if not has_stdout_handler:
 logger.info("Registering Flask App")
 app = Flask(__name__)
 
-# Enable CORS with support for credentials
-CORS(app, resources={r"/api/*": {"origins": "http://localhost:3000", "supports_credentials": True}})
-logger.info("CORS enabled for API endpoints with credentials support")
+# Enable CORS for all origins (update for production)
+CORS(app, resources={r"/*": {"origins": "*", "supports_credentials": False}})
+logger.info("CORS enabled for all endpoints")
 
 # register job enricher API blueprint
 app.register_blueprint(job_enricher_api_root, url_prefix="/api/job-enricher")

@@ -28,8 +28,9 @@ logger.info("Registering Flask App")
 app = Flask(__name__)
 
 # Enable CORS for all routes with detailed configuration
+# In production, replace "*" with specific allowed origins
 cors_config = {
-    "origins": ["http://localhost:3000"],
+    "origins": "*",  # Allow all origins (update for production)
     "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     "allow_headers": [
         "Content-Type", "Authorization", "X-Requested-With", "Accept",
@@ -38,7 +39,7 @@ cors_config = {
         "Access-Control-Allow-Headers", "Access-Control-Allow-Credentials"
     ],
     "expose_headers": ["Content-Type", "Authorization"],
-    "supports_credentials": True,
+    "supports_credentials": False,  # Set to False when using origins: "*"
     "max_age": 86400  # 24 hours
 }
 CORS(app, resources={r"/*": cors_config})
