@@ -4,128 +4,27 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:  # Allow manual triggering
+  workflow_dispatch:
+    inputs:
+      wake_services:
+        description: 'Wake up services after deployment'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+      scale_count:
+        description: 'Number of tasks to run (0 keeps services sleeping)'
+        required: false
+        default: '0'
+        type: string
 
-env:
-  AWS_REGION: ap-southeast-1
-  ECS_CLUSTER: microservices-cluster
-
+# Use the cost-optimized workflow
 jobs:
-  test:
-    name: Run Tests
-    uses: ./.github/workflows/test.yml
-    
   deploy:
-    needs: test  # Only deploy after tests pass
-    name: Deploy to ECS
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ env.AWS_REGION }}
-
-    - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v2
-
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-      with:
-        platforms: linux/amd64
-
-    - name: Build and push Docker images
-      env:
-        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        IMAGE_TAG: ${{ github.sha }}
-      run: |
-        # Build and push all service images
-        for SERVICE in job-enricher job-extractor job-matcher resume-parser; do
-          echo "Building $SERVICE..."
-          
-          # Build the image
-          docker build \
-            --platform linux/amd64 \
-            --build-arg SERVICE_NAME=$SERVICE \
-            -t $ECR_REGISTRY/$SERVICE:$IMAGE_TAG \
-            -t $ECR_REGISTRY/$SERVICE:latest \
-            -f services/$SERVICE/dockerfile \
-            services/$SERVICE
-          
-          # Push both tags
-          docker push $ECR_REGISTRY/$SERVICE:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$SERVICE:latest
-        done
-
-    - name: Update ECS services
-      env:
-        IMAGE_TAG: ${{ github.sha }}
-      run: |
-        # Update each service with the new image
-        for SERVICE in job-enricher job-extractor job-matcher resume-parser; do
-          echo "Updating ECS service: $SERVICE"
-          
-          # Get the current task definition
-          TASK_DEFINITION=$(aws ecs describe-task-definition \
-            --task-definition $SERVICE \
-            --query taskDefinition)
-          
-          # Update the image in the task definition
-          NEW_TASK_DEF=$(echo $TASK_DEFINITION | jq \
-            --arg IMAGE "${{ steps.login-ecr.outputs.registry }}/$SERVICE:$IMAGE_TAG" \
-            '.containerDefinitions[0].image = $IMAGE')
-          
-          # Remove fields that shouldn't be in the new task definition
-          NEW_TASK_DEF=$(echo $NEW_TASK_DEF | jq \
-            'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
-          
-          # Register the new task definition
-          NEW_TASK_INFO=$(aws ecs register-task-definition --cli-input-json "$NEW_TASK_DEF")
-          NEW_REVISION=$(echo $NEW_TASK_INFO | jq -r '.taskDefinition.revision')
-          
-          # Update the service with the new task definition
-          aws ecs update-service \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --service $SERVICE \
-            --task-definition ${SERVICE}:${NEW_REVISION} \
-            --force-new-deployment
-          
-          echo "Service $SERVICE updated to revision $NEW_REVISION"
-        done
-
-    - name: Wait for services to stabilize
-      run: |
-        echo "Waiting for services to stabilize..."
-        
-        # Wait for each service to stabilize
-        for SERVICE in job-enricher job-extractor job-matcher resume-parser; do
-          echo "Waiting for $SERVICE to stabilize..."
-          
-          # Wait up to 10 minutes for service to stabilize
-          aws ecs wait services-stable \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --services $SERVICE \
-            || echo "Warning: $SERVICE did not stabilize within timeout"
-        done
-        
-        echo "Deployment complete!"
-
-    - name: Send deployment notification
-      if: always()
-      uses: 8398a7/action-slack@v3
-      with:
-        status: ${{ job.status }}
-        text: |
-          Deployment to ECS ${{ job.status }}
-          Branch: ${{ github.ref }}
-          Commit: ${{ github.sha }}
-          Author: ${{ github.actor }}
-      env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-      continue-on-error: true
+    uses: ./.github/workflows/deploy-cost-optimized.yml
+    with:
+      wake_services: ${{ inputs.wake_services }}
+      scale_count: ${{ inputs.scale_count }}
+    secrets: inherit

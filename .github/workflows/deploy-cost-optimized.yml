@@ -1,0 +1,205 @@
+name: Cost-Optimized Deploy to AWS ECS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      wake_services:
+        description: 'Wake up services after deployment'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+      scale_count:
+        description: 'Number of tasks to run (0 keeps services sleeping)'
+        required: false
+        default: '0'
+        type: string
+
+env:
+  AWS_REGION: ap-southeast-1
+  ECS_CLUSTER: microservices-cluster
+
+jobs:
+  test:
+    name: Run Tests
+    uses: ./.github/workflows/test.yml
+    
+  deploy:
+    needs: test
+    name: Deploy to ECS (Cost-Optimized)
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Check current service status
+      id: check-status
+      run: |
+        echo "Checking current service status..."
+        for SERVICE in job-enricher job-extractor job-matcher resume-parser; do
+          DESIRED_COUNT=$(aws ecs describe-services \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services $SERVICE \
+            --query 'services[0].desiredCount' \
+            --output text 2>/dev/null || echo "0")
+          
+          echo "${SERVICE}_count=${DESIRED_COUNT}" >> $GITHUB_OUTPUT
+          echo "$SERVICE currently has $DESIRED_COUNT desired tasks"
+        done
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Build and push Docker images
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        # Build and push only if services will be running
+        for SERVICE in job-enricher job-extractor job-matcher resume-parser; do
+          echo "Building $SERVICE..."
+          
+          docker build \
+            --platform linux/amd64 \
+            --build-arg SERVICE_NAME=$SERVICE \
+            -t $ECR_REGISTRY/$SERVICE:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$SERVICE:latest \
+            -f services/$SERVICE/dockerfile \
+            services/$SERVICE
+          
+          docker push $ECR_REGISTRY/$SERVICE:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$SERVICE:latest
+        done
+
+    - name: Update ECS task definitions
+      env:
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        # Update task definitions even if services are stopped
+        # This ensures they use the latest image when started
+        for SERVICE in job-enricher job-extractor job-matcher resume-parser; do
+          echo "Updating task definition for $SERVICE..."
+          
+          TASK_DEFINITION=$(aws ecs describe-task-definition \
+            --task-definition $SERVICE \
+            --query taskDefinition)
+          
+          # Update with minimal resources for cost optimization
+          NEW_TASK_DEF=$(echo $TASK_DEFINITION | jq \
+            --arg IMAGE "${{ steps.login-ecr.outputs.registry }}/$SERVICE:$IMAGE_TAG" \
+            '.containerDefinitions[0].image = $IMAGE | 
+             .cpu = "256" | 
+             .memory = "512"')
+          
+          NEW_TASK_DEF=$(echo $NEW_TASK_DEF | jq \
+            'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
+          
+          NEW_TASK_INFO=$(aws ecs register-task-definition --cli-input-json "$NEW_TASK_DEF")
+          NEW_REVISION=$(echo $NEW_TASK_INFO | jq -r '.taskDefinition.revision')
+          
+          echo "Task definition $SERVICE updated to revision $NEW_REVISION"
+        done
+
+    - name: Update services (without waking)
+      if: github.event.inputs.wake_services != 'true'
+      run: |
+        echo "Updating services without changing desired count (cost-saving mode)..."
+        
+        for SERVICE in job-enricher job-extractor job-matcher resume-parser; do
+          CURRENT_COUNT="${{ steps.check-status.outputs[format('{0}_count', SERVICE)] }}"
+          
+          # Update service but maintain current desired count (including 0)
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service $SERVICE \
+            --task-definition $SERVICE \
+            --desired-count ${CURRENT_COUNT:-0} \
+            --force-new-deployment \
+            || echo "Service $SERVICE update failed (might be stopped)"
+        done
+        
+        echo "ℹ️ Services updated but NOT started. To start services, run the workflow manually with 'Wake up services' option."
+
+    - name: Wake and update services
+      if: github.event.inputs.wake_services == 'true'
+      run: |
+        SCALE_COUNT="${{ github.event.inputs.scale_count }}"
+        SCALE_COUNT="${SCALE_COUNT:-1}"  # Default to 1 if not specified
+        
+        echo "Waking services and scaling to $SCALE_COUNT tasks each..."
+        
+        for SERVICE in job-enricher job-extractor job-matcher resume-parser; do
+          echo "Starting $SERVICE with $SCALE_COUNT tasks..."
+          
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service $SERVICE \
+            --task-definition $SERVICE \
+            --desired-count $SCALE_COUNT \
+            --force-new-deployment
+        done
+        
+        # Wait for services to stabilize
+        echo "Waiting for services to stabilize..."
+        for SERVICE in job-enricher job-extractor job-matcher resume-parser; do
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services $SERVICE \
+            || echo "Warning: $SERVICE did not stabilize within timeout"
+        done
+
+    - name: Display cost information
+      if: always()
+      run: |
+        echo "💰 Cost Optimization Summary:"
+        echo "================================"
+        
+        for SERVICE in job-enricher job-extractor job-matcher resume-parser; do
+          DESIRED=$(aws ecs describe-services \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services $SERVICE \
+            --query 'services[0].desiredCount' \
+            --output text 2>/dev/null || echo "0")
+          
+          if [ "$DESIRED" = "0" ]; then
+            echo "✅ $SERVICE: Stopped (No cost)"
+          else
+            echo "💵 $SERVICE: Running $DESIRED task(s) (~\$0.012/hour per task)"
+          fi
+        done
+        
+        echo ""
+        echo "To start services manually:"
+        echo "1. Go to Actions tab"
+        echo "2. Select 'Cost-Optimized Deploy to AWS ECS'"
+        echo "3. Click 'Run workflow'"
+        echo "4. Set 'Wake up services' to 'true'"
+        echo "5. Set desired task count (1 for minimal cost)"
+
+    - name: Send cost-aware notification
+      if: always()
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        text: |
+          Deployment ${{ job.status }}
+          Mode: ${{ github.event.inputs.wake_services == 'true' && '🟢 Services Started' || '💤 Services Kept Sleeping (Cost-Saving)' }}
+          Branch: ${{ github.ref }}
+          Author: ${{ github.actor }}
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      continue-on-error: true
