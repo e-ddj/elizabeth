@@ -105,7 +105,14 @@ jobs:
         echo "Updating services without changing desired count (cost-saving mode)..."
         
         for SERVICE in job-enricher job-extractor job-matcher resume-parser; do
-          CURRENT_COUNT="${{ steps.check-status.outputs[format('{0}_count', SERVICE)] }}"
+          # Get current desired count for each service
+          CURRENT_COUNT=$(aws ecs describe-services \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services $SERVICE \
+            --query 'services[0].desiredCount' \
+            --output text 2>/dev/null || echo "0")
+          
+          echo "Updating $SERVICE (current count: $CURRENT_COUNT)"
           
           # Update service but maintain current desired count (including 0)
           aws ecs update-service \

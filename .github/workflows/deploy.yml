@@ -25,6 +25,6 @@ jobs:
   deploy:
     uses: ./.github/workflows/deploy-cost-optimized.yml
     with:
-      wake_services: ${{ github.event_name == 'workflow_dispatch' && inputs.wake_services || 'false' }}
-      scale_count: ${{ github.event_name == 'workflow_dispatch' && inputs.scale_count || '0' }}
+      wake_services: ${{ github.event_name == 'workflow_dispatch' && inputs.wake_services || 'true' }}
+      scale_count: ${{ github.event_name == 'workflow_dispatch' && inputs.scale_count || '1' }}
     secrets: inherit
