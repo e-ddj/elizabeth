@@ -1,6 +1,18 @@
 name: Cost-Optimized Deploy to AWS ECS
 
 on:
+  workflow_call:
+    inputs:
+      wake_services:
+        description: 'Wake up services after deployment'
+        required: false
+        default: 'false'
+        type: string
+      scale_count:
+        description: 'Number of tasks to run (0 keeps services sleeping)'
+        required: false
+        default: '0'
+        type: string
   push:
     branches:
       - main
