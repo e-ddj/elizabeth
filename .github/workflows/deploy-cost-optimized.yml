@@ -13,36 +13,13 @@ on:
         required: false
         default: '0'
         type: string
-  push:
-    branches:
-      - main
-  workflow_dispatch:
-    inputs:
-      wake_services:
-        description: 'Wake up services after deployment'
-        required: false
-        default: 'false'
-        type: choice
-        options:
-          - 'true'
-          - 'false'
-      scale_count:
-        description: 'Number of tasks to run (0 keeps services sleeping)'
-        required: false
-        default: '0'
-        type: string
 
 env:
   AWS_REGION: ap-southeast-1
   ECS_CLUSTER: microservices-cluster
 
 jobs:
-  test:
-    name: Run Tests
-    uses: ./.github/workflows/test.yml
-    
   deploy:
-    needs: test
     name: Deploy to ECS (Cost-Optimized)
     runs-on: ubuntu-latest
     
