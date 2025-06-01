@@ -76,13 +76,13 @@ jobs:
           docker build \
             --platform linux/amd64 \
             --build-arg SERVICE_NAME=$SERVICE \
-            -t $ECR_REGISTRY/$SERVICE:$IMAGE_TAG \
-            -t $ECR_REGISTRY/$SERVICE:latest \
+            -t $ECR_REGISTRY/microservices/$SERVICE:$IMAGE_TAG \
+            -t $ECR_REGISTRY/microservices/$SERVICE:latest \
             -f services/$SERVICE/dockerfile \
             services/$SERVICE
           
-          docker push $ECR_REGISTRY/$SERVICE:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$SERVICE:latest
+          docker push $ECR_REGISTRY/microservices/$SERVICE:$IMAGE_TAG
+          docker push $ECR_REGISTRY/microservices/$SERVICE:latest
         done
 
     - name: Update ECS task definitions
@@ -100,7 +100,7 @@ jobs:
           
           # Update with minimal resources for cost optimization
           NEW_TASK_DEF=$(echo $TASK_DEFINITION | jq \
-            --arg IMAGE "${{ steps.login-ecr.outputs.registry }}/$SERVICE:$IMAGE_TAG" \
+            --arg IMAGE "${{ steps.login-ecr.outputs.registry }}/microservices/$SERVICE:$IMAGE_TAG" \
             '.containerDefinitions[0].image = $IMAGE | 
              .cpu = "256" | 
              .memory = "512"')
