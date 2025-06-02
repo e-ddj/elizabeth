@@ -311,9 +311,17 @@ def extract_text_from_file(file_bytes: bytes, file_extension: str) -> str:
         # Create a BytesIO object from the file bytes
         file_io = io.BytesIO(file_bytes)
         
+        # Log file details
+        logger.info(f"Processing file: extension={file_extension}, size={len(file_bytes)} bytes")
+        
         # Use the doc_converters utility to extract text
         text_content, file_type = extract_text_from_document(file_io, f"file{file_extension}")
         logger.info(f"Successfully extracted text from {file_type} file (length: {len(text_content)} characters)")
+        
+        # Log if vision API was used
+        if len(text_content) > 0:
+            logger.info(f"Text extraction successful - first 100 chars: {text_content[:100]}...")
+        
         return text_content
         
     except ValueError as e:

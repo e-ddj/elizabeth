@@ -34,6 +34,7 @@ def extract_text_from_pdf(pdf_file: io.BytesIO) -> str:
     """
     Extract text from a PDF file stored as a BytesIO object,
     preserving formatting and spacing as much as possible.
+    Falls back to vision API for image-based PDFs.
     
     Args:
         pdf_file: BytesIO object containing the PDF data
@@ -48,6 +49,10 @@ def extract_text_from_pdf(pdf_file: io.BytesIO) -> str:
         raise ValueError("PDF extraction requires PyMuPDF (fitz) which is not installed")
     
     try:
+        # Get the PDF bytes for potential vision API fallback
+        pdf_bytes = pdf_file.getvalue()
+        pdf_file.seek(0)  # Reset position after reading
+        
         doc = fitz.open(stream=pdf_file, filetype="pdf")
         text_parts = []
         
@@ -72,6 +77,18 @@ def extract_text_from_pdf(pdf_file: io.BytesIO) -> str:
         
         # Remove multiple consecutive blank lines
         processed_text = "\n".join(line for line, _ in groupby(processed_text.split("\n")))
+        
+        # Check if we got meaningful text
+        MIN_TEXT_LENGTH = 100
+        if len(processed_text.strip()) < MIN_TEXT_LENGTH:
+            logger.info("Direct PDF text extraction yielded insufficient content, attempting vision-based extraction")
+            try:
+                from .vision_extractor import extract_text_from_pdf_with_fallback
+                processed_text = extract_text_from_pdf_with_fallback(pdf_bytes)
+            except ImportError:
+                logger.warning("Vision extractor not available, returning minimal text")
+            except Exception as e:
+                logger.warning(f"Vision-based extraction failed: {e}, returning minimal text")
         
         return processed_text
     except Exception as e:
