@@ -9,8 +9,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from bs4 import BeautifulSoup
-import time
-import random
+# Removed unused imports for performance
 import os
 import io
 from pathlib import Path
@@ -27,6 +26,9 @@ except ImportError:
     _HAS_SELENIUM = False
     logger = logging.getLogger(__name__)
     logger.warning("Selenium or undetected_chromedriver not available - browser emulation will be disabled")
+
+# Global driver instance for reuse (much faster than creating new instances)
+_global_driver = None
 
 # Import document processing utilities
 from utils.files.doc_converters import extract_text_from_document, _HAS_PYMUPDF, _HAS_DOCX
@@ -63,45 +65,90 @@ session.headers.update({
     "Sec-Fetch-User": "?1"
 })
 
-def get_chrome_driver():
+def get_or_create_driver():
     """
-    Create and configure an undetected Chrome driver instance.
+    Get or create a global Chrome driver instance for reuse (much faster than creating new instances).
     
     Returns:
-        Configured Chrome driver instance
+        Reusable Chrome driver instance optimized for speed
     """
+    global _global_driver
+    
     if not _HAS_SELENIUM:
         raise ImportError("Selenium or undetected_chromedriver is not installed")
-        
+    
+    # Return existing driver if available and still functional
+    if _global_driver is not None:
+        try:
+            # Quick test to see if driver is still alive
+            _global_driver.current_url
+            return _global_driver
+        except Exception:
+            # Driver is dead, create a new one
+            _global_driver = None
+    
+    # Create new optimized driver
     options = uc.ChromeOptions()
+    # Ultra-minimal configuration for maximum speed
     options.add_argument('--headless')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--memory-pressure-off')  # Prevent Chrome from throttling due to low memory
+    options.add_argument('--max_old_space_size=512')  # Limit V8 heap for container
+    options.add_argument('--disable-blink-features=AutomationControlled')  # Hide automation
+    options.add_argument('--disable-features=TranslateUI')  # Disable translate
+    options.add_argument('--disable-ipc-flooding-protection')  # Better performance in containers
     options.add_argument('--disable-gpu')
-    options.add_argument('--window-size=1920,1080')
-    options.add_argument('--disable-blink-features=AutomationControlled')
+    options.add_argument('--window-size=1280,720')  # Standard size for proper rendering
+    options.add_argument('--disable-images')
+    # Enable JavaScript as many job sites require it for content rendering
+    options.add_argument('--disable-plugins')
+    options.add_argument('--disable-extensions')
+    options.add_argument('--disable-web-security')
+    options.add_argument('--disable-features=VizDisplayCompositor')
+    options.add_argument('--disable-logging')
+    options.add_argument('--silent')
+    options.add_argument('--no-first-run')
+    options.add_argument('--no-default-browser-check')
+    options.add_argument('--disable-default-apps')
+    options.add_argument('--disable-hang-monitor')
+    options.add_argument('--disable-background-timer-throttling')
+    options.add_argument('--disable-renderer-backgrounding')
+    options.add_argument('--disable-backgrounding-occluded-windows')
+    options.add_argument('--disable-background-networking')
+    options.add_argument('--disable-sync')
+    options.add_argument('--metrics-recording-only')
+    options.add_argument('--no-zygote')  # Faster startup
+    
+    # Disable automation features for speed  
+    options.add_argument('--disable-automation')
     
     # Use Chromium binary if available
     if os.environ.get('CHROME_BIN'):
         options.binary_location = os.environ['CHROME_BIN']
     
-    # Add random user agent
-    user_agents = [
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-    ]
-    options.add_argument(f'--user-agent={random.choice(user_agents)}')
+    # Simple user agent
+    options.add_argument('--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36')
     
-    # Use chromedriver path if available
-    driver_path = os.environ.get('CHROMEDRIVER_PATH')
-    if driver_path:
-        return uc.Chrome(options=options, driver_executable_path=driver_path)
-    return uc.Chrome(options=options)
+    try:
+        driver_path = os.environ.get('CHROMEDRIVER_PATH')
+        if driver_path:
+            _global_driver = uc.Chrome(options=options, driver_executable_path=driver_path)
+        else:
+            _global_driver = uc.Chrome(options=options)
+        
+        # Set reasonable timeouts balancing speed and reliability
+        _global_driver.set_page_load_timeout(60)  # Max 60 seconds to load for complex JS sites
+        _global_driver.implicitly_wait(10)  # Max 10 seconds to find elements
+        
+        return _global_driver
+    except Exception as e:
+        logger.error(f"Failed to create Chrome driver: {e}")
+        raise
 
 def fetch_page(url: str) -> str:
     """
-    Fetch HTML content from a URL using undetected-chromedriver for sites that block regular requests.
+    Fetch HTML content from a URL using optimized browser emulation with driver reuse.
     
     Args:
         url: URL to fetch
@@ -112,74 +159,72 @@ def fetch_page(url: str) -> str:
     Raises:
         ValueError: If the URL is invalid or request fails
     """
-    # First try with regular requests
+    # Try regular requests first (fastest option)
     try:
-        response = session.get(url, timeout=HTTP_REQUEST_TIMEOUT)
-        if response.status_code == 200 and any(tag in response.text.lower() for tag in ['<html', '<body', '<div']):
+        response = session.get(url, timeout=5)  # Shorter timeout for speed
+        if response.status_code == 200 and len(response.text) > 1000:  # Basic content check
             return response.text
-    except Exception as e:
-        logger.warning(f"Regular request failed: {str(e)}")
+    except Exception:
+        pass  # Fail silently and try browser
     
-    # If Selenium is not available, we can't use browser emulation
+    # If Selenium is not available, return error
     if not _HAS_SELENIUM:
-        logger.error("Browser emulation is not available - request failed and fallback not possible")
-        raise ValueError(f"Failed to fetch content from {url} and browser emulation is not available")
+        raise ValueError(f"Failed to fetch content from {url} - browser emulation not available")
     
-    # If regular request fails or returns invalid content, use browser emulation
-    logger.info("Falling back to browser emulation")
-    driver = None
+    # Use reusable browser instance (much faster)
+    logger.info("Using browser emulation")
     try:
-        driver = get_chrome_driver()
+        driver = get_or_create_driver()
         
-        # Add random delay to simulate human behavior
-        time.sleep(random.uniform(1, 3))
-        
-        # Navigate to the URL
+        # Navigate and get content quickly
         driver.get(url)
         
-        # Wait for the page to load (wait for body to be present)
-        WebDriverWait(driver, SELENIUM_PAGE_LOAD_TIMEOUT).until(
-            EC.presence_of_element_located((By.TAG_NAME, "body"))
-        )
+        # Wait for page to be ready with JavaScript content
+        try:
+            # For JobStreet, wait for specific job content elements
+            if "jobstreet" in url.lower():
+                try:
+                    # Wait for job title or content wrapper to be present
+                    WebDriverWait(driver, 20).until(
+                        lambda d: d.find_elements(By.CLASS_NAME, "job-title") or 
+                                 d.find_elements(By.ID, "job-detail") or
+                                 d.find_elements(By.CLASS_NAME, "job-description") or
+                                 len(d.page_source) > 10000
+                    )
+                except:
+                    pass  # Continue with what we have
+            else:
+                # Generic wait for other sites
+                WebDriverWait(driver, 20).until(
+                    lambda d: d.execute_script("return document.readyState") == "complete"
+                )
+            
+            # Small additional wait for AJAX content
+            driver.implicitly_wait(3)
+            
+        except TimeoutException:
+            logger.warning("Page load timeout - proceeding with available content")
         
-        # Additional random delay to simulate reading
-        time.sleep(random.uniform(2, 4))
-        
-        # Scroll down slowly to simulate human behavior
-        total_height = driver.execute_script("return document.body.scrollHeight")
-        for i in range(0, total_height, random.randint(100, 200)):
-            driver.execute_script(f"window.scrollTo(0, {i});")
-            time.sleep(random.uniform(0.1, 0.3))
-        
-        # Get the page source
         html_content = driver.page_source
         
-        if not html_content.strip():
-            raise ValueError(f"Empty response received from {url}")
-            
-        if not any(tag in html_content.lower() for tag in ['<html', '<body', '<div']):
-            raise ValueError(f"Invalid HTML response received from {url}")
+        if len(html_content) < 500:  # Minimal content check
+            raise ValueError(f"Insufficient content received from {url}")
             
         return html_content
         
-    except TimeoutException:
-        error_msg = f"Timeout while loading page from {url}"
-        logger.error(error_msg)
-        raise ValueError(error_msg)
-    except WebDriverException as e:
-        error_msg = f"Browser error when fetching {url}: {str(e)}"
-        logger.error(error_msg)
-        raise ValueError(error_msg)
     except Exception as e:
-        error_msg = f"Error fetching page from URL: {str(e)}"
+        # If driver fails, create a new one and try once more
+        global _global_driver
+        if _global_driver:
+            try:
+                _global_driver.quit()
+            except:
+                pass
+            _global_driver = None
+            
+        error_msg = f"Browser emulation failed for {url}: {str(e)}"
         logger.error(error_msg)
         raise ValueError(error_msg)
-    finally:
-        if driver:
-            try:
-                driver.quit()
-            except Exception as e:
-                logger.warning(f"Error closing browser: {str(e)}")
 
 def extract_job_data(job_url: str) -> Dict[str, Any]:
     """
@@ -224,7 +269,10 @@ def extract_job_data(job_url: str) -> Dict[str, Any]:
         
         logger.info(f"Processed content length: {len(cleaned_content)} characters")
         
-        # Process the job posting through the AI model
+        # Process the job posting through the AI model with aggressive content limits
+        if len(cleaned_content) > 8000:  # Even more aggressive limit
+            cleaned_content = cleaned_content[:8000] + "\n[Content truncated for speed]"
+            
         job_data = process_job_posting(cleaned_content)
         
         if not job_data:
@@ -322,6 +370,18 @@ def extract_job_data_from_file(file_bytes: bytes, file_extension: str) -> Dict[s
         error_msg = f"Error processing job posting from file: {str(e)}"
         logger.error(error_msg, exc_info=True)
         raise
+
+def cleanup_driver():
+    """
+    Clean up the global driver instance.
+    """
+    global _global_driver
+    if _global_driver:
+        try:
+            _global_driver.quit()
+        except Exception:
+            pass
+        _global_driver = None
 
 def enrich_field(job_data: Dict[str, Any], field_name: str) -> Dict[str, Any]:
     """

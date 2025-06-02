@@ -1,0 +1,106 @@
+{
+  "containerDefinitions": [
+    {
+      "name": "resume-parser",
+      "image": "558379060332.dkr.ecr.ap-southeast-1.amazonaws.com/resume-parser:complete",
+      "cpu": 0,
+      "portMappings": [
+        {
+          "containerPort": 5004,
+          "hostPort": 5004,
+          "protocol": "tcp"
+        }
+      ],
+      "essential": true,
+      "environment": [
+        {
+          "name": "SERVICE_NAME",
+          "value": "resume-parser"
+        },
+        {
+          "name": "REDIS_HOST",
+          "value": "microservices-redis.ywhyck.0001.apse1.cache.amazonaws.com"
+        },
+        {
+          "name": "PORT",
+          "value": "5004"
+        },
+        {
+          "name": "REDIS_PORT",
+          "value": "6379"
+        },
+        {
+          "name": "OPENAI_PARSER_MODEL",
+          "value": "gpt-4o-mini"
+        },
+        {
+          "name": "ENVIRONMENT",
+          "value": "production"
+        },
+        {
+          "name": "DEBUG_IMAGES",
+          "value": "0"
+        },
+        {
+          "name": "CV_PAGES_LIMIT",
+          "value": "6"
+        },
+        {
+          "name": "LOG_LEVEL",
+          "value": "INFO"
+        },
+        {
+          "name": "CV_DPI",
+          "value": "180"
+        }
+      ],
+      "mountPoints": [],
+      "volumesFrom": [],
+      "secrets": [
+        {
+          "name": "SUPABASE_URL",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:558379060332:secret:supabase-url"
+        },
+        {
+          "name": "SUPABASE_PRIVATE_SERVICE_ROLE_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:558379060332:secret:supabase-key"
+        },
+        {
+          "name": "OPENAI_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:558379060332:secret:openai-key"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/microservices/resume-parser",
+          "awslogs-create-group": "true",
+          "awslogs-region": "ap-southeast-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "healthCheck": {
+        "command": [
+          "CMD-SHELL",
+          "curl -f http://localhost:5004/health || exit 1"
+        ],
+        "interval": 30,
+        "timeout": 10,
+        "retries": 3,
+        "startPeriod": 40
+      },
+      "systemControls": []
+    }
+  ],
+  "family": "resume-parser",
+  "taskRoleArn": "arn:aws:iam::558379060332:role/ecsTaskRole",
+  "executionRoleArn": "arn:aws:iam::558379060332:role/ecsTaskExecutionRole",
+  "networkMode": "awsvpc",
+  "volumes": [],
+  "placementConstraints": [],
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
+  "cpu": "256",
+  "memory": "512"
+}

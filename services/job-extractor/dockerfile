@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM --platform=linux/amd64 python:3.12-slim
 
 WORKDIR /app
 
@@ -22,6 +22,7 @@ RUN pip install --upgrade pip
 COPY requirements.txt ./
 
 # Install dependencies using pip
+RUN pip install setuptools==70.0.0
 RUN pip install -r requirements.txt
 
 # Copy the application
@@ -36,4 +37,4 @@ ENV PORT=5001
 ENV DISPLAY=:99
 
 # Use gunicorn with dynamic port binding and increased timeout for browser operations
-CMD gunicorn --bind 0.0.0.0:${PORT:-5001} --workers 1 --timeout 300 api.index:app
+CMD gunicorn --bind 0.0.0.0:${PORT:-5001} --workers 1 --timeout 1800 --graceful-timeout 300 api.index:app

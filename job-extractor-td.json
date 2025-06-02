@@ -1,0 +1,134 @@
+{
+    "taskDefinitionArn": "arn:aws:ecs:ap-southeast-1:558379060332:task-definition/job-extractor:13",
+    "containerDefinitions": [
+        {
+            "name": "job-extractor",
+            "image": "558379060332.dkr.ecr.ap-southeast-1.amazonaws.com/microservices/job-extractor:complete",
+            "cpu": 0,
+            "portMappings": [
+                {
+                    "containerPort": 5002,
+                    "hostPort": 5002,
+                    "protocol": "tcp"
+                }
+            ],
+            "essential": true,
+            "environment": [
+                {
+                    "name": "SERVICE_NAME",
+                    "value": "job-extractor"
+                },
+                {
+                    "name": "REDIS_HOST",
+                    "value": "microservices-redis.ywhyck.0001.apse1.cache.amazonaws.com"
+                },
+                {
+                    "name": "PORT",
+                    "value": "5002"
+                },
+                {
+                    "name": "REDIS_PORT",
+                    "value": "6379"
+                },
+                {
+                    "name": "LOG_LEVEL",
+                    "value": "INFO"
+                },
+                {
+                    "name": "ENVIRONMENT",
+                    "value": "production"
+                }
+            ],
+            "mountPoints": [],
+            "volumesFrom": [],
+            "secrets": [
+                {
+                    "name": "SUPABASE_URL",
+                    "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:558379060332:secret:supabase-url"
+                },
+                {
+                    "name": "SUPABASE_PRIVATE_SERVICE_ROLE_KEY",
+                    "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:558379060332:secret:supabase-key"
+                },
+                {
+                    "name": "OPENAI_API_KEY",
+                    "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:558379060332:secret:openai-key"
+                }
+            ],
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "/ecs/microservices/job-extractor",
+                    "awslogs-create-group": "true",
+                    "awslogs-region": "ap-southeast-1",
+                    "awslogs-stream-prefix": "ecs"
+                }
+            },
+            "healthCheck": {
+                "command": [
+                    "CMD-SHELL",
+                    "curl -f http://localhost:5002/health || exit 1"
+                ],
+                "interval": 30,
+                "timeout": 10,
+                "retries": 3,
+                "startPeriod": 40
+            },
+            "systemControls": []
+        }
+    ],
+    "family": "job-extractor",
+    "taskRoleArn": "arn:aws:iam::558379060332:role/ecsTaskRole",
+    "executionRoleArn": "arn:aws:iam::558379060332:role/ecsTaskExecutionRole",
+    "networkMode": "awsvpc",
+    "revision": 13,
+    "volumes": [],
+    "status": "ACTIVE",
+    "requiresAttributes": [
+        {
+            "name": "com.amazonaws.ecs.capability.logging-driver.awslogs"
+        },
+        {
+            "name": "ecs.capability.execution-role-awslogs"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.ecr-auth"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.docker-remote-api.1.19"
+        },
+        {
+            "name": "ecs.capability.secrets.asm.environment-variables"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.task-iam-role"
+        },
+        {
+            "name": "ecs.capability.container-health-check"
+        },
+        {
+            "name": "ecs.capability.execution-role-ecr-pull"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.docker-remote-api.1.18"
+        },
+        {
+            "name": "ecs.capability.task-eni"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.docker-remote-api.1.29"
+        }
+    ],
+    "placementConstraints": [],
+    "compatibilities": [
+        "EC2",
+        "FARGATE"
+    ],
+    "requiresCompatibilities": [
+        "FARGATE"
+    ],
+    "cpu": "256",
+    "memory": "512",
+    "registeredAt": "2025-06-01T22:42:19.207000+08:00",
+    "registeredBy": "arn:aws:iam::558379060332:user/deployer"
+}
