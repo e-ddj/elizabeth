@@ -1,0 +1,73 @@
+# Docker build configuration for job-extractor
+# IMPORTANT: Always build for linux/amd64 platform for AWS ECS deployment
+
+# Platform configuration
+PLATFORM := linux/amd64
+DOCKER_BUILDKIT := 1
+
+# Image configuration
+IMAGE_NAME := job-extractor
+TAG ?= latest
+
+# Build the Docker image for the correct platform
+.PHONY: build
+build:
+	@echo "Building Docker image for platform: $(PLATFORM)"
+	docker build --platform $(PLATFORM) -t $(IMAGE_NAME):$(TAG) .
+
+# Build with no cache (useful for debugging)
+.PHONY: build-no-cache
+build-no-cache:
+	@echo "Building Docker image (no cache) for platform: $(PLATFORM)"
+	docker build --platform $(PLATFORM) --no-cache -t $(IMAGE_NAME):$(TAG) .
+
+# Run the container locally (will show platform warning on ARM Macs)
+.PHONY: run
+run:
+	@echo "Running container (platform: $(PLATFORM))"
+	docker run --platform $(PLATFORM) -d \
+		--name $(IMAGE_NAME)-local \
+		-p 5001:5001 \
+		-e OPENAI_API_KEY="$${OPENAI_API_KEY}" \
+		-e SUPABASE_URL="$${SUPABASE_URL}" \
+		-e SUPABASE_PRIVATE_SERVICE_ROLE_KEY="$${SUPABASE_PRIVATE_SERVICE_ROLE_KEY}" \
+		$(IMAGE_NAME):$(TAG)
+
+# Stop and remove the local container
+.PHONY: stop
+stop:
+	docker stop $(IMAGE_NAME)-local || true
+	docker rm $(IMAGE_NAME)-local || true
+
+# View logs
+.PHONY: logs
+logs:
+	docker logs -f $(IMAGE_NAME)-local
+
+# Test the health endpoint
+.PHONY: test-health
+test-health:
+	curl -s http://localhost:5001/job-extractor/health | jq
+
+# Clean up images
+.PHONY: clean
+clean:
+	docker rmi $(IMAGE_NAME):$(TAG) || true
+
+# Build for local testing (native platform)
+.PHONY: build-local
+build-local:
+	@echo "Building Docker image for local platform (native)"
+	docker build -t $(IMAGE_NAME):local .
+
+.PHONY: help
+help:
+	@echo "Available targets:"
+	@echo "  build          - Build Docker image for linux/amd64 platform"
+	@echo "  build-no-cache - Build without cache for linux/amd64 platform"
+	@echo "  run            - Run container locally"
+	@echo "  stop           - Stop and remove local container"
+	@echo "  logs           - View container logs"
+	@echo "  test-health    - Test the health endpoint"
+	@echo "  clean          - Remove Docker images"
+	@echo "  build-local    - Build for native platform (for local testing)"
