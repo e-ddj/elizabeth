@@ -62,6 +62,8 @@ def extract_text_from_pdf(pdf_file: io.BytesIO) -> str:
         # Join all text parts with proper spacing
         text = "\n".join(text_parts)
         
+        logger.info(f"Raw PDF text extraction result: {len(text)} characters")
+        
         # Post-processing to improve readability
         lines = text.split("\n")
         processed_lines = []
@@ -78,15 +80,19 @@ def extract_text_from_pdf(pdf_file: io.BytesIO) -> str:
         # Remove multiple consecutive blank lines
         processed_text = "\n".join(line for line, _ in groupby(processed_text.split("\n")))
         
+        logger.info(f"Processed PDF text: {len(processed_text)} characters, stripped: {len(processed_text.strip())} characters")
+        
         # Check if we got meaningful text
         MIN_TEXT_LENGTH = 100
         if len(processed_text.strip()) < MIN_TEXT_LENGTH:
-            logger.info("Direct PDF text extraction yielded insufficient content, attempting vision-based extraction")
+            logger.info(f"Direct PDF text extraction yielded insufficient content ({len(processed_text.strip())} < {MIN_TEXT_LENGTH}), attempting vision-based extraction")
             try:
                 from .vision_extractor import extract_text_from_pdf_with_fallback
+                logger.info("Vision extractor imported successfully, attempting extraction")
                 processed_text = extract_text_from_pdf_with_fallback(pdf_bytes)
-            except ImportError:
-                logger.warning("Vision extractor not available, returning minimal text")
+                logger.info(f"Vision extraction completed, result: {len(processed_text)} characters")
+            except ImportError as e:
+                logger.warning(f"Vision extractor not available: {e}, returning minimal text")
             except Exception as e:
                 logger.warning(f"Vision-based extraction failed: {e}, returning minimal text")
         

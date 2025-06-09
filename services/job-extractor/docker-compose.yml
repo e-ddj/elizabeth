@@ -3,17 +3,21 @@ services:
     build:
       context: .
       dockerfile: dockerfile
+      platforms:
+        - linux/amd64
+    platform: linux/amd64
     ports:
-      - "5003:5000"
+      - "5001:5001"
     environment:
       - FLASK_APP=api/index.py
       - FLASK_DEBUG=1
       - PYTHONUNBUFFERED=1
       - LOG_LEVEL=DEBUG
-      - SUPABASE_URL=http://host.docker.internal:54321
-      - SUPABASE_PRIVATE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
-      - SUPABASE_PUBLIC_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+      - PORT=5001
+      - SUPABASE_URL=${SUPABASE_URL:-http://host.docker.internal:54321}
+      - SUPABASE_PRIVATE_SERVICE_ROLE_KEY=${SUPABASE_PRIVATE_SERVICE_ROLE_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU}
+      - SUPABASE_PUBLIC_ANON_KEY=${SUPABASE_PUBLIC_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
     volumes:
       - .:/app  # <-- This mounts your current directory (host) to /app (container)
-    command: ["gunicorn", "--bind", "0.0.0.0:5000", "--timeout", "120", "--workers", "1", "--worker-class", "sync", "--log-level", "debug", "api.index:app"]
+    command: ["gunicorn", "--bind", "0.0.0.0:5001", "--timeout", "120", "--workers", "1", "--worker-class", "sync", "--log-level", "debug", "api.index:app"]

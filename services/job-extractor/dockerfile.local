@@ -1,0 +1,31 @@
+FROM --platform=linux/amd64 python:3.12-slim
+
+WORKDIR /app
+
+# Install minimal dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Upgrade pip
+RUN pip install --upgrade pip
+
+# Copy requirements.txt
+COPY requirements.txt ./
+
+# Install Python dependencies
+RUN pip install setuptools==70.0.0
+RUN pip install -r requirements.txt
+
+# Copy the application
+COPY . .
+
+# Expose the correct port
+EXPOSE 5001
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PORT=5001
+
+# Use gunicorn with dynamic port binding
+CMD gunicorn --bind 0.0.0.0:${PORT:-5001} --workers 1 --timeout 300 --graceful-timeout 60 api.index:app
