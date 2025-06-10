@@ -54,7 +54,6 @@ Take the following raw job data JSON and return a single JSON object with exactl
 - Rewrite "title" to be more engaging.
 - Expand "summary" into a 2–3 sentence hook highlighting team culture, growth paths, and location perks.
 - For "responsibilities" and "qualifications", rewrite each bullet into action-oriented, benefit-driven bullets.
-- If "salaryRange" is null, set it to {{ min: 60000, max: 80000, currency: 'NZD', display: 'NZD 60,000–80,000' }}.
 - Under "perks", add at least five high-impact perks (e.g. "Wellness stipend", "Professional development budget", etc.).
 - Under "benefitsData", add relevant benefit IDs based on jobBenefits mapping (e.g. [1,4,7]).
 - Add a new field "highlightedBenefits" as an array of 3 strings calling out the top perks.

@@ -95,20 +95,20 @@ def match_job_to_users_async(job_id: str, overwrite_existing: bool = False):
                 if match_result:
                     score = float(match_result.get("overall_match_percentage", 0)) / 100.0
                     
-                    # if score > 0:
-                        # Store the match
-                    store_match_result(
-                        user_id=user_id,
-                        job_id=job_id,
-                        score=score,
-                        details=match_result
-                    )
-                    matches_found += 1
-                    
-                    logger.info("Match found and stored",
-                                user_id=user_id,
-                                job_id=job_id,
-                                score=score)
+                    if score > 0.5:
+                            # Store the match
+                        store_match_result(
+                            user_id=user_id,
+                            job_id=job_id,
+                            score=score,
+                            details=match_result
+                        )
+                        matches_found += 1
+                        
+                        logger.info("Match found and stored",
+                                    user_id=user_id,
+                                    job_id=job_id,
+                                    score=score)
                 
             except Exception as e:
                 logger.error("Error processing user",
