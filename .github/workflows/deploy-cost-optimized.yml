@@ -75,6 +75,7 @@ jobs:
     - name: Update ECS task definitions
       env:
         IMAGE_TAG: ${{ github.sha }}
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
       run: |
         # Update task definitions even if services are stopped
         # This ensures they use the latest image when started
@@ -85,10 +86,30 @@ jobs:
             --task-definition $SERVICE \
             --query taskDefinition)
           
-          # Update with minimal resources for cost optimization
+          # Update with minimal resources for cost optimization and environment variables
           NEW_TASK_DEF=$(echo $TASK_DEFINITION | jq \
+            --arg IMAGE "$ECR_REGISTRY/microservices/$SERVICE:complete" \
+            --arg SUPABASE_URL_STAGING "${{ secrets.SUPABASE_URL_STAGING }}" \
+            --arg SUPABASE_KEY_STAGING "${{ secrets.SUPABASE_PRIVATE_SERVICE_ROLE_KEY_STAGING }}" \
+            --arg SUPABASE_URL_PROD "${{ secrets.SUPABASE_URL_PROD }}" \
+            --arg SUPABASE_KEY_PROD "${{ secrets.SUPABASE_PRIVATE_SERVICE_ROLE_KEY_PROD }}" \
+            --arg OPENAI_API_KEY "${{ secrets.OPENAI_API_KEY }}" \
             '.cpu = "256" | 
-             .memory = "512"')
+             .memory = "512" |
+             .containerDefinitions[0].image = $IMAGE |
+             .containerDefinitions[0].environment = [
+               {"name": "DEFAULT_ENVIRONMENT", "value": "production"},
+               {"name": "SUPABASE_URL_STAGING", "value": $SUPABASE_URL_STAGING},
+               {"name": "SUPABASE_PRIVATE_SERVICE_ROLE_KEY_STAGING", "value": $SUPABASE_KEY_STAGING},
+               {"name": "SUPABASE_URL_PROD", "value": $SUPABASE_URL_PROD},
+               {"name": "SUPABASE_PRIVATE_SERVICE_ROLE_KEY_PROD", "value": $SUPABASE_KEY_PROD},
+               {"name": "SUPABASE_URL", "value": $SUPABASE_URL_PROD},
+               {"name": "SUPABASE_PRIVATE_SERVICE_ROLE_KEY", "value": $SUPABASE_KEY_PROD},
+               {"name": "OPENAI_API_KEY", "value": $OPENAI_API_KEY},
+               {"name": "WEB_CONCURRENCY", "value": "4"},
+               {"name": "WORKER_CLASS", "value": "sync"},
+               {"name": "REDIS_HOST", "value": "redis"}
+             ]')
           
           NEW_TASK_DEF=$(echo $NEW_TASK_DEF | jq \
             'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
