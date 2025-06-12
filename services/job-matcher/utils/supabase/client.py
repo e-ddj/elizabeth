@@ -3,17 +3,20 @@ from supabase import create_client, Client
 from config.log_config import setup_logging
 from typing import List, Optional
 from uuid import UUID
+from shared.utils.environment import get_environment_config
 
 logger = setup_logging()
 
 def create_supabase_client() -> Client:
     """Create and return a Supabase client instance."""
-    url = os.getenv("SUPABASE_URL")
-    key = os.getenv("SUPABASE_PRIVATE_SERVICE_ROLE_KEY")
+    config = get_environment_config()
+    url = config['url']
+    key = config['key']
     
     if not url or not key:
-        raise ValueError("SUPABASE_URL and SUPABASE_PRIVATE_SERVICE_ROLE_KEY must be set")
+        raise ValueError(f"Supabase credentials not found for {config['environment']} environment")
     
+    logger.info(f"Creating Supabase client for {config['environment']} environment")
     return create_client(url, key)
 
 def fetch_job_by_id(job_id: str) -> dict:

@@ -6,6 +6,7 @@ import os
 from typing import Optional, Dict, Any
 import logging
 from supabase import create_client as sb_create_client, Client
+from shared.utils.environment import get_environment_config
 
 logger = logging.getLogger(__name__)
 
@@ -22,21 +23,22 @@ def create_client(options: Optional[Dict[str, Any]] = None) -> Client:
     Raises:
         ValueError: If required environment variables are not set
     """
-    # Get Supabase URL and key from environment variables
-    supabase_url = os.getenv("SUPABASE_URL")
-    supabase_key = os.getenv("SUPABASE_PRIVATE_SERVICE_ROLE_KEY")
+    # Get environment-specific Supabase configuration
+    config = get_environment_config()
+    supabase_url = config['url']
+    supabase_key = config['key']
     
     if not supabase_url:
-        error_msg = "SUPABASE_URL environment variable is not set"
+        error_msg = f"Supabase URL not found for {config['environment']} environment"
         logger.error(error_msg)
         raise ValueError(error_msg)
         
     if not supabase_key:
-        error_msg = "SUPABASE_PRIVATE_SERVICE_ROLE_KEY environment variable is not set"
+        error_msg = f"Supabase key not found for {config['environment']} environment"
         logger.error(error_msg)
         raise ValueError(error_msg)
     
-    logger.debug("Creating Supabase client")
+    logger.info(f"Creating Supabase client for {config['environment']} environment")
     
     # Create and return Supabase client
     options = options or {}

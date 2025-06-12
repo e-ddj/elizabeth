@@ -2,6 +2,7 @@ import os
 from typing import List, Any
 from supabase import create_client as create_supabase_client, Client
 from config.log_config import get_logger
+from shared.utils.environment import get_environment_config
 
 logger = get_logger()
 
@@ -19,17 +20,20 @@ def create_client(options) -> Client:
         ValueError: If required environment variables are missing
         Exception: For other connection issues
     """
-    # Fetch environment variables
-    url: str = os.getenv("SUPABASE_URL")
+    # Get environment-specific Supabase configuration
+    config = get_environment_config()
+    url: str = config['url']
+    
     if options.get("admin"):
-        key: str = os.getenv("SUPABASE_PRIVATE_SERVICE_ROLE_KEY")
+        key: str = config['key']
         key_type = "service role key"
     else:
+        # For public/anon key, still use environment variable (not environment-specific yet)
         key: str = os.getenv("SUPABASE_PUBLIC_ANON_KEY")
         key_type = "anon key"
 
     # Log key presence/absence without exposing the actual keys
-    logger.info(f"Creating Supabase client with {'admin' if options.get('admin') else 'public'} permissions")
+    logger.info(f"Creating Supabase client for {config['environment']} environment with {'admin' if options.get('admin') else 'public'} permissions")
     
     # Validate environment variables
     if not url:
