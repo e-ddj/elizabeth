@@ -86,9 +86,26 @@ jobs:
             --task-definition $SERVICE \
             --query taskDefinition)
           
+          # Set correct port for each service (matching nginx upstream config)
+          case $SERVICE in
+            job-enricher)
+              PORT="5001"
+              ;;
+            job-extractor)
+              PORT="5002"
+              ;;
+            job-matcher)
+              PORT="5003"
+              ;;
+            resume-parser)
+              PORT="5004"
+              ;;
+          esac
+          
           # Update with minimal resources for cost optimization and staging environment variables (preserve existing secrets)
           NEW_TASK_DEF=$(echo $TASK_DEFINITION | jq \
             --arg IMAGE "$ECR_REGISTRY/microservices/$SERVICE:complete" \
+            --arg PORT "$PORT" \
             --arg SUPABASE_URL_STAGING "${{ secrets.SUPABASE_URL_STAGING }}" \
             --arg SUPABASE_KEY_STAGING "${{ secrets.SUPABASE_PRIVATE_SERVICE_ROLE_KEY_STAGING }}" \
             --arg SUPABASE_URL_PROD "${{ secrets.SUPABASE_URL_PROD }}" \
@@ -96,8 +113,12 @@ jobs:
             '.cpu = "256" | 
              .memory = "512" |
              .containerDefinitions[0].image = $IMAGE |
-             .containerDefinitions[0].environment = [
+             .containerDefinitions[0].portMappings[0].containerPort = ($PORT | tonumber) |
+             .containerDefinitions[0].portMappings[0].hostPort = ($PORT | tonumber) |
+             .containerDefinitions[0].healthCheck.command = ["CMD-SHELL", "curl -f http://localhost:" + $PORT + "/health || exit 1"] |
+             .containerDefinitions[0].environment = ((.containerDefinitions[0].environment // []) | map(select(.name != "PORT")) + [
                {"name": "DEFAULT_ENVIRONMENT", "value": "production"},
+               {"name": "PORT", "value": $PORT},
                {"name": "SUPABASE_URL_STAGING", "value": $SUPABASE_URL_STAGING},
                {"name": "SUPABASE_PRIVATE_SERVICE_ROLE_KEY_STAGING", "value": $SUPABASE_KEY_STAGING},
                {"name": "SUPABASE_URL_PROD", "value": $SUPABASE_URL_PROD},
@@ -105,7 +126,7 @@ jobs:
                {"name": "WEB_CONCURRENCY", "value": "4"},
                {"name": "WORKER_CLASS", "value": "sync"},
                {"name": "REDIS_HOST", "value": "redis"}
-             ]')
+             ])')
           
           NEW_TASK_DEF=$(echo $NEW_TASK_DEF | jq \
             'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
