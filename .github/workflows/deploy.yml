@@ -65,14 +65,13 @@ jobs:
           aws ecs describe-task-definition --task-definition $SERVICE \
             --query 'taskDefinition' > task-def-$SERVICE.json
           
-          # Update the image tag and add environment variables
+          # Update the image tag and add environment variables (preserve existing secrets)
           NEW_IMAGE="${{ steps.login-ecr.outputs.registry }}/microservices/$SERVICE:$IMAGE_TAG"
           jq --arg IMAGE "$NEW_IMAGE" \
              --arg SUPABASE_URL_STAGING "${{ secrets.SUPABASE_URL_STAGING }}" \
              --arg SUPABASE_KEY_STAGING "${{ secrets.SUPABASE_PRIVATE_SERVICE_ROLE_KEY_STAGING }}" \
              --arg SUPABASE_URL_PROD "${{ secrets.SUPABASE_URL_PROD }}" \
              --arg SUPABASE_KEY_PROD "${{ secrets.SUPABASE_PRIVATE_SERVICE_ROLE_KEY_PROD }}" \
-             --arg OPENAI_API_KEY "${{ secrets.OPENAI_API_KEY }}" \
             '.containerDefinitions[0].image = $IMAGE | 
              .containerDefinitions[0].environment = [
                {"name": "DEFAULT_ENVIRONMENT", "value": "production"},
@@ -82,7 +81,6 @@ jobs:
                {"name": "SUPABASE_PRIVATE_SERVICE_ROLE_KEY_PROD", "value": $SUPABASE_KEY_PROD},
                {"name": "SUPABASE_URL", "value": $SUPABASE_URL_PROD},
                {"name": "SUPABASE_PRIVATE_SERVICE_ROLE_KEY", "value": $SUPABASE_KEY_PROD},
-               {"name": "OPENAI_API_KEY", "value": $OPENAI_API_KEY},
                {"name": "WEB_CONCURRENCY", "value": "4"},
                {"name": "WORKER_CLASS", "value": "sync"},
                {"name": "REDIS_HOST", "value": "redis"}
