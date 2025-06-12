@@ -86,7 +86,7 @@ jobs:
             --task-definition $SERVICE \
             --query taskDefinition)
           
-          # Update with minimal resources for cost optimization and environment variables (preserve existing secrets)
+          # Update with minimal resources for cost optimization and staging environment variables (preserve existing secrets)
           NEW_TASK_DEF=$(echo $TASK_DEFINITION | jq \
             --arg IMAGE "$ECR_REGISTRY/microservices/$SERVICE:complete" \
             --arg SUPABASE_URL_STAGING "${{ secrets.SUPABASE_URL_STAGING }}" \
@@ -102,8 +102,6 @@ jobs:
                {"name": "SUPABASE_PRIVATE_SERVICE_ROLE_KEY_STAGING", "value": $SUPABASE_KEY_STAGING},
                {"name": "SUPABASE_URL_PROD", "value": $SUPABASE_URL_PROD},
                {"name": "SUPABASE_PRIVATE_SERVICE_ROLE_KEY_PROD", "value": $SUPABASE_KEY_PROD},
-               {"name": "SUPABASE_URL", "value": $SUPABASE_URL_PROD},
-               {"name": "SUPABASE_PRIVATE_SERVICE_ROLE_KEY", "value": $SUPABASE_KEY_PROD},
                {"name": "WEB_CONCURRENCY", "value": "4"},
                {"name": "WORKER_CLASS", "value": "sync"},
                {"name": "REDIS_HOST", "value": "redis"}

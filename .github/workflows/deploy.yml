@@ -65,7 +65,7 @@ jobs:
           aws ecs describe-task-definition --task-definition $SERVICE \
             --query 'taskDefinition' > task-def-$SERVICE.json
           
-          # Update the image tag and add environment variables (preserve existing secrets)
+          # Update the image tag and add staging environment variables (preserve existing secrets)
           NEW_IMAGE="${{ steps.login-ecr.outputs.registry }}/microservices/$SERVICE:$IMAGE_TAG"
           jq --arg IMAGE "$NEW_IMAGE" \
              --arg SUPABASE_URL_STAGING "${{ secrets.SUPABASE_URL_STAGING }}" \
@@ -79,8 +79,6 @@ jobs:
                {"name": "SUPABASE_PRIVATE_SERVICE_ROLE_KEY_STAGING", "value": $SUPABASE_KEY_STAGING},
                {"name": "SUPABASE_URL_PROD", "value": $SUPABASE_URL_PROD},
                {"name": "SUPABASE_PRIVATE_SERVICE_ROLE_KEY_PROD", "value": $SUPABASE_KEY_PROD},
-               {"name": "SUPABASE_URL", "value": $SUPABASE_URL_PROD},
-               {"name": "SUPABASE_PRIVATE_SERVICE_ROLE_KEY", "value": $SUPABASE_KEY_PROD},
                {"name": "WEB_CONCURRENCY", "value": "4"},
                {"name": "WORKER_CLASS", "value": "sync"},
                {"name": "REDIS_HOST", "value": "redis"}
