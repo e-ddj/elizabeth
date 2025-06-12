@@ -30,7 +30,7 @@ Production-ready microservices architecture optimized for AWS deployment with au
 
 ## Features
 
-### Production-Ready
+### Production-Ready -
 - **Gunicorn** WSGI server with configurable workers
 - **Health checks** with detailed status reporting
 - **Circuit breakers** for fault tolerance
