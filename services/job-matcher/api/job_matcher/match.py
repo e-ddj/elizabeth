@@ -1,4 +1,5 @@
 import threading
+import contextvars
 from flask import jsonify, request
 from api.job_matcher.index import job_matcher_bp
 from config.log_config import setup_logging
@@ -40,10 +41,11 @@ def match_job():
         if not job_exists(job_id):
             return jsonify({"error": f"Job with ID {job_id} not found"}), 404
         
-        # Start async matching process
+        # Start async matching process with context propagation
+        ctx = contextvars.copy_context()
         thread = threading.Thread(
-            target=match_job_to_users_async,
-            args=(job_id, overwrite),
+            target=ctx.run,
+            args=(match_job_to_users_async, job_id, overwrite),
             daemon=True
         )
         thread.start()
@@ -92,10 +94,11 @@ def match_user():
         if not user_exists(user_id):
             return jsonify({"error": f"User with ID {user_id} not found"}), 404
         
-        # Start async matching process
+        # Start async matching process with context propagation
+        ctx = contextvars.copy_context()
         thread = threading.Thread(
-            target=match_user_to_jobs_async,
-            args=(user_id, overwrite),
+            target=ctx.run,
+            args=(match_user_to_jobs_async, user_id, overwrite),
             daemon=True
         )
         thread.start()
