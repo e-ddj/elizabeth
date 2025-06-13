@@ -8,11 +8,13 @@ logger = logging.getLogger(__name__)
 # Context variable for environment - automatically propagates to child threads
 env_context = contextvars.ContextVar('environment', default='production')
 
-def get_environment_config():
+def get_environment_config(environment=None):
     """
-    Determine environment based on X-Environment header or context variable.
+    Determine environment based on explicit parameter, X-Environment header, or context variable.
     Supports: development, staging, production
-    Uses context variables to propagate environment to background threads.
+    
+    Args:
+        environment: Explicit environment override (development, staging, production)
     
     Returns:
         dict: Configuration with 'url', 'key', and 'environment'
@@ -37,16 +39,23 @@ def get_environment_config():
         }
     }
     
-    # Try context variable first (works in background threads)
+    valid_envs = ['development', 'staging', 'production']
+    
+    # Priority 1: Use explicit environment parameter if provided
+    if environment and environment.lower() in valid_envs:
+        env = environment.lower()
+        logger.info(f"Using explicit environment parameter: {env}")
+        return configs.get(env, configs['production'])
+    
+    # Priority 2: Try context variable (for background threads)
     env = env_context.get()
     if env != 'production':  # Already set to non-default
         logger.debug(f"Using environment from context: {env}")
         return configs.get(env, configs['production'])
     
-    # Set from request header if we have request context (main thread)
+    # Priority 3: Set from request header if we have request context (main thread)
     if has_request_context():
         header_env = request.headers.get('X-Environment', '').lower()
-        valid_envs = ['development', 'staging', 'production']
         
         if header_env and header_env in valid_envs:
             env = header_env
@@ -63,7 +72,6 @@ def get_environment_config():
     else:
         # No request context (likely background thread), use fallback
         env = os.getenv('DEFAULT_ENVIRONMENT', 'production').lower()
-        valid_envs = ['development', 'staging', 'production']
         if env not in valid_envs:
             env = 'production'
         logger.debug(f"No request context, using environment: {env}")

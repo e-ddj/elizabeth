@@ -1,5 +1,4 @@
 import threading
-import contextvars
 from flask import jsonify, request
 from api.job_matcher.index import job_matcher_bp
 from config.log_config import setup_logging
@@ -37,15 +36,19 @@ def match_job():
         
         logger.info("Received job match request", job_id=job_id)
         
+        # Get environment from header
+        environment = request.headers.get('X-Environment', '').lower()
+        if environment not in ['development', 'staging', 'production']:
+            environment = None  # Use default
+        
         # Check if job exists
-        if not job_exists(job_id):
+        if not job_exists(job_id, environment=environment):
             return jsonify({"error": f"Job with ID {job_id} not found"}), 404
         
-        # Start async matching process with context propagation
-        ctx = contextvars.copy_context()
+        # Start async matching process with explicit environment
         thread = threading.Thread(
-            target=ctx.run,
-            args=(match_job_to_users_async, job_id, overwrite),
+            target=match_job_to_users_async,
+            args=(job_id, overwrite, environment),
             daemon=True
         )
         thread.start()
@@ -90,15 +93,19 @@ def match_user():
         
         logger.info("Received user match request", user_id=user_id)
         
+        # Get environment from header
+        environment = request.headers.get('X-Environment', '').lower()
+        if environment not in ['development', 'staging', 'production']:
+            environment = None  # Use default
+        
         # Check if user exists
-        if not user_exists(user_id):
+        if not user_exists(user_id, environment=environment):
             return jsonify({"error": f"User with ID {user_id} not found"}), 404
         
-        # Start async matching process with context propagation
-        ctx = contextvars.copy_context()
+        # Start async matching process with explicit environment
         thread = threading.Thread(
-            target=ctx.run,
-            args=(match_user_to_jobs_async, user_id, overwrite),
+            target=match_user_to_jobs_async,
+            args=(user_id, overwrite, environment),
             daemon=True
         )
         thread.start()

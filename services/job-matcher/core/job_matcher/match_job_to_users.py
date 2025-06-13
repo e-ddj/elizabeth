@@ -16,7 +16,7 @@ from models.job_matcher.healthcare_matching import compute_healthcare_match_scor
 
 logger = setup_logging()
 
-def match_job_to_users_async(job_id: str, overwrite_existing: bool = False):
+def match_job_to_users_async(job_id: str, overwrite_existing: bool = False, environment: str = None):
     """
     Asynchronously match a job to HCP users based on medical specialties.
     Only runs detailed matching if specialties match.
@@ -24,12 +24,13 @@ def match_job_to_users_async(job_id: str, overwrite_existing: bool = False):
     Args:
         job_id: The ID of the job to match
         overwrite_existing: Whether to overwrite existing matches
+        environment: Explicit environment (development, staging, production)
     """
     logger.info("Starting async job matching process", job_id=job_id)
     
     try:
         # Fetch job data
-        job_data = fetch_job_by_id(job_id)
+        job_data = fetch_job_by_id(job_id, environment=environment)
         job = Job.from_dict(job_data)
         
         if not job.medical_specialty_rosetta_id:
@@ -42,7 +43,7 @@ def match_job_to_users_async(job_id: str, overwrite_existing: bool = False):
                    specialty=job.medical_specialty_rosetta_id)
         
         # Get all HCP users
-        hcp_users = get_users_by_role("hcp")
+        hcp_users = get_users_by_role("hcp", environment=environment)
         logger.info(f"Found {len(hcp_users)} HCP users to process")
         
         matches_found = 0
@@ -54,13 +55,13 @@ def match_job_to_users_async(job_id: str, overwrite_existing: bool = False):
                     continue
                 
                 # Check if match already exists
-                if not overwrite_existing and check_match_exists(user_id, job_id):
+                if not overwrite_existing and check_match_exists(user_id, job_id, environment=environment):
                     logger.debug("Match already exists, skipping", 
                                user_id=user_id, job_id=job_id)
                     continue
                 
                 # Get user specialties
-                user_specialties = get_user_specialties(user_id)
+                user_specialties = get_user_specialties(user_id, environment=environment)
                 
                 # Check specialty match (hard requirement)
                 specialty_match = False
@@ -81,7 +82,7 @@ def match_job_to_users_async(job_id: str, overwrite_existing: bool = False):
                           job_id=job_id)
                 
                 # Get resume text
-                resume_text = get_resume_text_for_user(user_id)
+                resume_text = get_resume_text_for_user(user_id, environment=environment)
                 if not resume_text:
                     logger.warning("No resume text available", user_id=user_id)
                     continue
@@ -101,7 +102,8 @@ def match_job_to_users_async(job_id: str, overwrite_existing: bool = False):
                             user_id=user_id,
                             job_id=job_id,
                             score=score,
-                            details=match_result
+                            details=match_result,
+                            environment=environment
                         )
                         matches_found += 1
                         
@@ -127,12 +129,12 @@ def match_job_to_users_async(job_id: str, overwrite_existing: bool = False):
                     error=str(e),
                     exc_info=True)
 
-def get_user_profile_data(user_id: str) -> Optional[Dict[str, Any]]:
+def get_user_profile_data(user_id: str, environment: str = None) -> Optional[Dict[str, Any]]:
     """
     Get complete user profile data as a structured dictionary.
     """
     try:
-        client = create_supabase_client()
+        client = create_supabase_client(environment=environment)
         user_data = {}
         
         # Get user profile
@@ -164,7 +166,7 @@ def get_user_profile_data(user_id: str) -> Optional[Dict[str, Any]]:
             user_data["education"] = []
         
         # Get specialties
-        user_data["specialties"] = get_user_specialties(user_id)
+        user_data["specialties"] = get_user_specialties(user_id, environment=environment)
         
         # Try to get certifications if table exists
         try:
@@ -200,7 +202,7 @@ def get_user_profile_data(user_id: str) -> Optional[Dict[str, Any]]:
         logger.error("Error fetching user profile data", user_id=user_id, error=str(e))
         return None
 
-def get_resume_text_for_user(user_id: str) -> Optional[str]:
+def get_resume_text_for_user(user_id: str, environment: str = None) -> Optional[str]:
     """
     Get resume text for a user from various sources.
     
@@ -210,7 +212,7 @@ def get_resume_text_for_user(user_id: str) -> Optional[str]:
     """
     try:
         # Get all user data
-        user_data = get_user_profile_data(user_id)
+        user_data = get_user_profile_data(user_id, environment=environment)
         if not user_data:
             return None
         
@@ -343,7 +345,7 @@ def get_resume_text_for_user(user_id: str) -> Optional[str]:
         logger.error("Error building resume text", user_id=user_id, error=str(e))
         return None
 
-def match_user_to_jobs_async(user_id: str, overwrite_existing: bool = False):
+def match_user_to_jobs_async(user_id: str, overwrite_existing: bool = False, environment: str = None):
     """
     Asynchronously match a user to all available jobs based on medical specialties.
     Only runs detailed matching if specialties match.
@@ -351,15 +353,16 @@ def match_user_to_jobs_async(user_id: str, overwrite_existing: bool = False):
     Args:
         user_id: The ID of the user to match
         overwrite_existing: Whether to overwrite existing matches
+        environment: Explicit environment (development, staging, production)
     """
     logger.info("Starting async user-to-jobs matching process", user_id=user_id)
     
     # Update user's matching status to 'processing' at the start
-    update_user_matching_status(user_id, "processing")
+    update_user_matching_status(user_id, "processing", environment=environment)
     
     try:
         # Get user specialties
-        user_specialties = get_user_specialties(user_id)
+        user_specialties = get_user_specialties(user_id, environment=environment)
         
         if not user_specialties:
             logger.warning("User has no medical specialties, skipping", user_id=user_id)
@@ -370,7 +373,7 @@ def match_user_to_jobs_async(user_id: str, overwrite_existing: bool = False):
                    specialties=[s.get("name") for s in user_specialties])
         
         # Get user's resume text once (to avoid multiple fetches)
-        resume_text = get_resume_text_for_user(user_id)
+        resume_text = get_resume_text_for_user(user_id, environment=environment)
         if not resume_text:
             logger.warning("No resume text available for user", user_id=user_id)
             return
@@ -386,7 +389,7 @@ def match_user_to_jobs_async(user_id: str, overwrite_existing: bool = False):
             
             # Fetch all jobs with this specialty
             from utils.supabase.client import fetch_jobs_by_specialty
-            matching_jobs = fetch_jobs_by_specialty(specialty_id)
+            matching_jobs = fetch_jobs_by_specialty(specialty_id, environment=environment)
             
             logger.info(f"Found {len(matching_jobs)} jobs for specialty",
                        specialty=specialty.get("name"),
@@ -401,7 +404,7 @@ def match_user_to_jobs_async(user_id: str, overwrite_existing: bool = False):
                     jobs_processed += 1
                     
                     # Check if match already exists
-                    if not overwrite_existing and check_match_exists(user_id, job_id):
+                    if not overwrite_existing and check_match_exists(user_id, job_id, environment=environment):
                         logger.debug("Match already exists, skipping", 
                                    user_id=user_id, job_id=job_id)
                         continue
@@ -428,7 +431,8 @@ def match_user_to_jobs_async(user_id: str, overwrite_existing: bool = False):
                             user_id=user_id,
                             job_id=job_id,
                             score=score,
-                            details=match_result
+                            details=match_result,
+                            environment=environment
                         )
                         matches_found += 1
                         
@@ -450,7 +454,7 @@ def match_user_to_jobs_async(user_id: str, overwrite_existing: bool = False):
                    matches_found=matches_found)
         
         # Update user's matching status to 'finished'
-        update_user_matching_status(user_id, "finished")
+        update_user_matching_status(user_id, "finished", environment=environment)
         
     except Exception as e:
         logger.error("Error in user-to-jobs matching process", 
@@ -459,4 +463,4 @@ def match_user_to_jobs_async(user_id: str, overwrite_existing: bool = False):
                     exc_info=True)
         
         # Even on error, update the status to indicate the process is finished
-        update_user_matching_status(user_id, "finished")
+        update_user_matching_status(user_id, "finished", environment=environment)
