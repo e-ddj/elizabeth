@@ -1,29 +1,22 @@
 import os
-from flask import request
+import contextvars
+from flask import request, has_request_context
 import logging
 
 logger = logging.getLogger(__name__)
 
+# Context variable for environment - automatically propagates to child threads
+env_context = contextvars.ContextVar('environment', default='production')
+
 def get_environment_config():
     """
-    Determine environment based on X-Environment header or default.
+    Determine environment based on X-Environment header or context variable.
     Supports: development, staging, production
+    Uses context variables to propagate environment to background threads.
     
     Returns:
         dict: Configuration with 'url', 'key', and 'environment'
     """
-    # Check request header first
-    env = None
-    if request:
-        env = request.headers.get('X-Environment', '').lower()
-    
-    # Fallback to default environment
-    valid_envs = ['development', 'staging', 'production']
-    if not env or env not in valid_envs:
-        env = os.getenv('DEFAULT_ENVIRONMENT', 'production').lower()
-    
-    logger.info(f"Using environment: {env}")
-    
     # Environment-specific configurations
     configs = {
         'development': {
@@ -43,6 +36,37 @@ def get_environment_config():
             'environment': 'production'
         }
     }
+    
+    # Try context variable first (works in background threads)
+    env = env_context.get()
+    if env != 'production':  # Already set to non-default
+        logger.debug(f"Using environment from context: {env}")
+        return configs.get(env, configs['production'])
+    
+    # Set from request header if we have request context (main thread)
+    if has_request_context():
+        header_env = request.headers.get('X-Environment', '').lower()
+        valid_envs = ['development', 'staging', 'production']
+        
+        if header_env and header_env in valid_envs:
+            env = header_env
+            env_context.set(env)  # Set context for background threads
+            logger.info(f"Set environment from header: {env}")
+        else:
+            # Use default from env var
+            env = os.getenv('DEFAULT_ENVIRONMENT', 'production').lower()
+            if env in valid_envs:
+                env_context.set(env)
+                logger.info(f"Set environment from DEFAULT_ENVIRONMENT: {env}")
+            else:
+                env = 'production'
+    else:
+        # No request context (likely background thread), use fallback
+        env = os.getenv('DEFAULT_ENVIRONMENT', 'production').lower()
+        valid_envs = ['development', 'staging', 'production']
+        if env not in valid_envs:
+            env = 'production'
+        logger.debug(f"No request context, using environment: {env}")
     
     return configs.get(env, configs['production'])
 
