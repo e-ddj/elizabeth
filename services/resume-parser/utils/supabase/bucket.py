@@ -15,19 +15,41 @@ SUPABASE_RESUMES_BUCKET = "resumes"
 def download_file(client: Client, file_path: str) -> Optional[io.BytesIO]:
     """
     Attempts to download a file from Supabase storage, trying multiple buckets if needed.
-    The file_path can be in two formats:
-    1. "bucket/path" - Explicit bucket and path
-    2. "path" - Uses default bucket (SUPABASE_USER_FILE_BUCKET)
+    The file_path can be in three formats:
+    1. "environment/bucket/path" - Environment prefix with bucket and path
+    2. "bucket/path" - Explicit bucket and path
+    3. "path" - Uses default bucket (SUPABASE_USER_FILE_BUCKET)
     
     Returns a BytesIO object if successful, or None if there's an error.
     """
     # Parse the file path to determine bucket and path
-    parts = file_path.split('/', 1)
+    parts = file_path.split('/')
     
-    if len(parts) > 1 and parts[0] in ["user_files", "resumes", "public", "avatars", "user-files"]:
+    # Check if the first part is an environment name
+    environments = ["development", "staging", "production"]
+    known_buckets = ["user_files", "resumes", "public", "avatars", "user-files"]
+    
+    if len(parts) >= 2 and parts[0] in environments:
+        # Format: "environment/..." - skip the environment part
+        logger.info(f"Detected environment prefix in path: {parts[0]}")
+        
+        # Remove the environment part and reparse
+        remaining_parts = parts[1:]
+        
+        if len(remaining_parts) >= 2 and remaining_parts[0] in known_buckets:
+            # Format: "environment/bucket/path"
+            bucket_id = remaining_parts[0]
+            path = '/'.join(remaining_parts[1:])
+            logger.info(f"Parsed path with environment and bucket: env={parts[0]}, bucket={bucket_id}, path={path}")
+        else:
+            # Format: "environment/path" - use default bucket
+            bucket_id = SUPABASE_USER_FILE_BUCKET
+            path = '/'.join(remaining_parts)
+            logger.info(f"Parsed path with environment only: env={parts[0]}, bucket={bucket_id}, path={path}")
+    elif len(parts) >= 2 and parts[0] in known_buckets:
         # Format: "bucket/path"
         bucket_id = parts[0]
-        path = parts[1]
+        path = '/'.join(parts[1:])
         logger.info(f"Parsed path with explicit bucket: bucket={bucket_id}, path={path}")
     else:
         # Format: just "path" - assume default bucket
