@@ -37,10 +37,16 @@ def hcp_user_profile_endpoint():
         logger.error("file_path parameter is missing in request")
         abort(400, description="file_path parameter is required")
 
+    # Get environment from header
+    environment = request.headers.get('X-Environment', '').lower()
+    if environment not in ['development', 'staging', 'production']:
+        environment = None  # Use default
+    logger.info(f"Environment from X-Environment header: {environment or 'default'}")
+
     try:
         logger.info(f"Attempting to extract profile from resume at path: {file_path}")
         # Extract both resume_text and profile_dict from the resume
-        resume_text, profile_dict = extract_profile_from_resume(file_path=file_path)
+        resume_text, profile_dict = extract_profile_from_resume(file_path=file_path, environment=environment)
         logger.info("Profile extraction successful")
     except FileNotFoundError as fnf_error:
         error_msg = str(fnf_error)

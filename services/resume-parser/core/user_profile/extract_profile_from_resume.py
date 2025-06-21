@@ -1069,8 +1069,8 @@ def _local_parse(file_bytes: bytes, supabase) -> dict:
 
 
 # ────────── public entry point ──────────
-def extract_profile_from_resume(file_path: str) -> Tuple[None, dict]:
-    logger.info(f"Starting extract_profile_from_resume for file: {file_path}")
+def extract_profile_from_resume(file_path: str, environment: str = None) -> Tuple[None, dict]:
+    logger.info(f"Starting extract_profile_from_resume for file: {file_path}, environment: {environment or 'default'}")
     
     # Verify environment variables first
     supabase_url = os.getenv("SUPABASE_URL")
@@ -1090,7 +1090,7 @@ def extract_profile_from_resume(file_path: str) -> Tuple[None, dict]:
     logger.info(f"Supabase key is set: {supabase_key[:5]}...{supabase_key[-4:] if len(supabase_key) > 8 else ''}")
     
     try:
-        supabase = create_client(options={"admin": True})
+        supabase = create_client(options={"admin": True}, environment=environment)
         logger.info("Supabase client created successfully")
     except Exception as e:
         logger.error(f"Failed to create Supabase client: {e}", exc_info=True)

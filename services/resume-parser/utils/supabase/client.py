@@ -6,12 +6,13 @@ from shared.utils.environment import get_environment_config
 
 logger = get_logger()
 
-def create_client(options) -> Client:
+def create_client(options, environment: str = None) -> Client:
     """
     Creates a Supabase client using environment variables.
     
     Args:
         options (dict): Options dictionary, with 'admin' key to determine if we use service role key.
+        environment: Explicit environment (development, staging, production)
         
     Returns:
         Client: Supabase client instance
@@ -21,7 +22,7 @@ def create_client(options) -> Client:
         Exception: For other connection issues
     """
     # Get environment-specific Supabase configuration
-    config = get_environment_config()
+    config = get_environment_config(environment=environment)
     url: str = config['url']
     
     if options.get("admin"):
