@@ -86,10 +86,15 @@ def get_users_by_role(role: str = "hcp", environment: str = None) -> List[dict]:
     """Get all users with a specific role."""
     try:
         client = create_supabase_client(environment=environment)
-        # This assumes there's a way to filter users by role
-        # Adjust based on your actual schema
-        response = client.table("user_profile").select("*").execute()
-        # You might need to join with auth.users or filter differently
+        
+        # Build query based on role
+        query = client.table("user_profile").select("*")
+        
+        # Filter for physicians when role is hcp
+        if role == "hcp":
+            query = query.eq("profession", "P")
+        
+        response = query.execute()
         return response.data
     except Exception as e:
         logger.error("Error fetching users by role", role=role, error=str(e))

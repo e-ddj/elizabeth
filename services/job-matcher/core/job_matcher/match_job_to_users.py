@@ -349,6 +349,7 @@ def match_user_to_jobs_async(user_id: str, overwrite_existing: bool = False, env
     """
     Asynchronously match a user to all available jobs based on medical specialties.
     Only runs detailed matching if specialties match.
+    Only processes physicians (profession = "P").
     
     Args:
         user_id: The ID of the user to match
@@ -358,9 +359,23 @@ def match_user_to_jobs_async(user_id: str, overwrite_existing: bool = False, env
     logger.info("Starting async user-to-jobs matching process", user_id=user_id)
     
     # Update user's matching status to 'processing' at the start
-    update_user_matching_status(user_id, "processing", environment=environment)
+    update_user_matching_status(user_id, "started", environment=environment)
     
     try:
+        # Check if user is a physician before proceeding
+        client = create_supabase_client(environment=environment)
+        profile_response = client.table("user_profile").select("profession").eq("user_id", user_id).single().execute()
+        
+        if not profile_response.data:
+            logger.warning("User profile not found, skipping matching", user_id=user_id)
+            update_user_matching_status(user_id, "finished", environment=environment)
+            return
+        
+        user_profession = profile_response.data.get("profession")
+        if user_profession != "P":
+            logger.info("User is not a physician, skipping job matching", user_id=user_id, profession=user_profession)
+            update_user_matching_status(user_id, "finished", environment=environment)
+            return
         # Get user specialties
         user_specialties = get_user_specialties(user_id, environment=environment)
         
