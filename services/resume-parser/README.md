@@ -6,6 +6,7 @@ This microservice is responsible for parsing resumes (CVs) into structured data 
 
 - Resume parsing from various file formats (PDF, DOCX, DOC, TXT)
 - AI-powered extraction of profile information using OpenAI's models
+- Automatic language detection and translation for non-English resumes
 - Profile photo extraction capabilities
 - Structured data output in JSON format
 
@@ -86,6 +87,8 @@ Parses a resume and extracts structured information.
 **Response:**
 ```json
 {
+  "detected_language": "English",
+  "was_translated": false,
   "profile": {
     "title": "Dr.",
     "first_name": "John",
@@ -155,6 +158,58 @@ Parses a resume and extracts structured information.
     "healthcare_confidence": 100,
     "messages": ["Profile looks good — you can proceed to the next step."]
   }
+}
+```
+
+## Language Detection and Translation
+
+The resume parser automatically detects the language of submitted resumes and translates non-English content to English. This feature ensures that resumes from international candidates can be processed effectively.
+
+### How it works:
+
+1. **Language Detection**: The AI model analyzes the resume content to identify its primary language
+2. **Automatic Translation**: If the resume is not in English, all content is translated during extraction
+3. **Metadata Tracking**: The response includes:
+   - `detected_language`: The original language of the resume (e.g., "Spanish", "Chinese", "Arabic")
+   - `was_translated`: Boolean indicating whether translation was performed
+
+### Translation Guidelines:
+
+- All narrative text, job descriptions, and educational details are translated to English
+- Organization and institution names may include both translated and original versions for clarity
+- Country names are standardized to full English names (e.g., "USA" → "United States")
+- The translation preserves the meaning and context of the original content
+
+### Example with Translation:
+
+**Request:**
+```json
+{
+  "file_path": "spanish_resume.pdf"
+}
+```
+
+**Response:**
+```json
+{
+  "detected_language": "Spanish",
+  "was_translated": true,
+  "profile": {
+    "first_name": "Maria",
+    "last_name": "Garcia",
+    "position": "Cardiologist",
+    "country": "Spain",
+    "about_me": "Experienced cardiologist with 15 years of practice in interventional cardiology..."
+  },
+  "experiences": [
+    {
+      "job_title": "Senior Cardiologist",
+      "organization": "Hospital Universitario La Paz (La Paz University Hospital)",
+      "city": "Madrid",
+      "country": "Spain",
+      "description": "Leading the interventional cardiology unit..."
+    }
+  ]
 }
 ```
 

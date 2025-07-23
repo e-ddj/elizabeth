@@ -774,6 +774,8 @@ def _file_bytes_to_vision_chunks(blob: bytes, suffix: str) -> list[dict]:
 SYSTEM_MESSAGE = """
 You are an expert CV-parser. The attached PDF file may contain text or be image-based. First, evaluate if the PDF contains extractable text or requires Optical Character Recognition (OCR) for text extraction. **Then perform an image pass** (see Photo-extraction workflow below). After extracting the text, carefully parse the content and provide the output as a single JSON object with the following structure:
 
+- `detected_language`: The primary language of the resume (e.g., "English", "Spanish", "Chinese", "Arabic", etc.)
+- `was_translated`: Boolean indicating if translation was performed (true if resume was not in English, false otherwise)
 - `profile`: Personal information (see detailed field list below).
 - `experiences`: Job-experience items (see detailed field list below).
 - `educations`: Degree or certificate items (see detailed field list below).
@@ -782,6 +784,16 @@ You are an expert CV-parser. The attached PDF file may contain text or be image-
 - `publications`: Research publications.
 - `awards`: List of prizes, medals, scholarships, fellowships or other distinctions.
 - `scores`: **must always be present** (see scoring logic below).
+
+**LANGUAGE DETECTION AND TRANSLATION**:
+1. First, detect the primary language of the resume content
+2. If the resume is not in English, translate ALL content to English during extraction
+3. When translating:
+   - Translate job titles, descriptions, and all narrative text to English
+   - For proper nouns (organization names, university names, etc.), provide the English translation but you may also include the original name in parentheses if it adds clarity
+   - Ensure all extracted data in the JSON response is in English
+   - Set `was_translated` to true and specify the `detected_language`
+4. If the resume is already in English, set `was_translated` to false and `detected_language` to "English"
 
 **IMPORTANT**: DO NOT extract or include any profile pictures in your response. The `photo_base64` field will be handled separately by the system. Leave this field empty ("") in your response.
 
@@ -885,6 +897,8 @@ Append a top-level key called `"scores"` to your final JSON, with this structure
 Return **one** JSON object only — no markdown fencing, no extra keys:
 
 {
+  "detected_language": "English",
+  "was_translated": false,
   "profile": { ... },
   "experiences": [ ... ],
   "educations": [ ... ],
@@ -904,6 +918,7 @@ Return **one** JSON object only — no markdown fencing, no extra keys:
 USER_INSTRUCTIONS = (
     "Parse the attached CV and output the JSON schema described, "
     "considering whether the document contains extractable text or requires OCR. "
+    "Detect the language of the resume and translate to English if necessary. "
     "Make sure to extract and include the city and country for both the education and professional experience items, "
     "where available, and follow the provided structure for the education section."
 )
@@ -1119,6 +1134,11 @@ def extract_profile_from_resume(file_path: str, environment: str = None) -> Tupl
     logger.info(f"Processing file with extension: {suffix}")
 
     # ── 1 Vision/GPT pipeline ───────────
+    # The OpenAI model will detect the language and translate non-English resumes to English
+    # This is handled in the SYSTEM_MESSAGE prompt which instructs the model to:
+    # 1. Detect the resume's language
+    # 2. Translate all content to English if needed
+    # 3. Set detected_language and was_translated fields accordingly
     raw_openai_data = {} # Initialize in case of exception
     try:
         raw_openai_data = _ask_openai_with_images(file_bytes, suffix)
@@ -1165,6 +1185,11 @@ def _log_key_fields(data: dict) -> None:
         return
     
     try:
+        # Log language detection information
+        if "detected_language" in data:
+            logger.info(f"Detected language: {data.get('detected_language', 'Not specified')}")
+            logger.info(f"Translation performed: {data.get('was_translated', False)}")
+        
         # Log profile information
         if "profile" in data and isinstance(data["profile"], dict):
             profile = data["profile"]
