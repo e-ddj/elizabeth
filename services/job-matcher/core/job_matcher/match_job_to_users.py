@@ -338,6 +338,7 @@ def get_resume_text_for_user(user_id: str, environment: str = None) -> Optional[
         
         # Combine both for comprehensive context
         final_text = f"{resume_text}\n\n=== STRUCTURED DATA (JSON) ===\n{json_representation}"
+        logger.info("Final resume text", final_text=final_text)
         
         return final_text if resume_parts else None
         

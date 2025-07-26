@@ -835,8 +835,7 @@ Follow these country standardization rules for all fields that include a country
     - `degree_name`: The full title of the degree or certificate (e.g., "Certificate in Medical Laboratory Techniques").
     - `degree_type`: The type of degree (e.g., "Certificate").
     - `description`: A short description of the degree or certificate (if available). If no description is provided, leave this field empty ("").
-    - `start_date`: The start date of the degree program in `YYYY` format.
-    - `end_date`: The end date of the degree program in `YYYY` format, or `"present"` if ongoing.
+    - `start_date`: graduation date of the degree program in `YYYY` format.
     - `school_name`: The name of the institution where the degree was awarded.
     - `city`: The city where the educational institution is located (if available).
     - `country`: The country where the educational institution is located (if available). Use the full standard country name, not abbreviations. If no country is provided, leave this field with the value null. 
