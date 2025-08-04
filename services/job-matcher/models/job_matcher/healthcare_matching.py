@@ -129,6 +129,10 @@ def compute_healthcare_match_score(
         )
         
         result = json.loads(response.choices[0].message.content)
+        
+        # Add type_of_match to indicate this is a full AI-based match
+        result["type_of_match"] = "fit"
+        
         logger.info("Healthcare match scoring completed", 
                    score=result.get("overall_match_percentage"))
         return result

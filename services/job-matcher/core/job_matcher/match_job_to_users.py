@@ -16,6 +16,41 @@ from models.job_matcher.healthcare_matching import compute_healthcare_match_scor
 
 logger = setup_logging()
 
+def generate_pre_match_result() -> Dict[str, Any]:
+    """
+    Generate a pre-match result for users with incomplete profiles.
+    All scores are set to 0 and type_of_match is set to 'pre_match'.
+    """
+    return {
+        "education_match": {
+            "matching_education": False,
+            "education_gaps": [],
+            "score_percentage": "0"
+        },
+        "specialty_match": {
+            "matching_specialty": True,  # True because we only show jobs matching specialty
+            "specialty_mismatch": [],
+            "score_percentage": "0"
+        },
+        "experience_match": {
+            "years_of_experience_match": False,
+            "nature_of_experience_match": False,
+            "score_percentage": "0"
+        },
+        "skills_responsibilities_match": {
+            "matching_skills_responsibilities": [],
+            "missing_skills_responsibilities": [],
+            "score_percentage": "0"
+        },
+        "certifications_match": {
+            "meets_requirements": False,
+            "missing_certifications": [],
+            "score_percentage": "0"
+        },
+        "overall_match_percentage": "0",
+        "type_of_match": "pre_match"
+    }
+
 def match_job_to_users_async(job_id: str, overwrite_existing: bool = False, environment: str = None):
     """
     Asynchronously match a job to HCP users based on medical specialties.
@@ -76,41 +111,70 @@ def match_job_to_users_async(job_id: str, overwrite_existing: bool = False, envi
                                job_specialty=job.medical_specialty_rosetta_id)
                     continue
                 
-                # Specialty matches - proceed with detailed matching
-                logger.info("Specialty match found, running detailed analysis",
-                          user_id=user_id,
-                          job_id=job_id)
+                # Specialty matches - check if this is a light profile
+                pronouns = user_data.get("pronouns")
+                is_light_profile = pronouns == "light"
                 
-                # Get resume text
-                resume_text = get_resume_text_for_user(user_id, environment=environment)
-                if not resume_text:
-                    logger.warning("No resume text available", user_id=user_id)
-                    continue
-                
-                # Run detailed AI matching
-                match_result = compute_healthcare_match_score(
-                    resume_text=resume_text,
-                    job_description=job.description
-                )
-                
-                if match_result:
-                    score = float(match_result.get("overall_match_percentage", 0)) / 100.0
+                if is_light_profile:
+                    # For light profiles, create pre-match without AI analysis
+                    logger.info("Creating pre-match for light profile",
+                              user_id=user_id,
+                              job_id=job_id)
                     
-                    if score > 0.5:
-                            # Store the match
-                        store_match_result(
-                            user_id=user_id,
-                            job_id=job_id,
-                            score=score,
-                            details=match_result,
-                            environment=environment
-                        )
-                        matches_found += 1
+                    match_result = generate_pre_match_result()
+                    
+                    # Store the pre-match with score 0
+                    store_match_result(
+                        user_id=user_id,
+                        job_id=job_id,
+                        score=0.0,
+                        details=match_result,
+                        environment=environment
+                    )
+                    matches_found += 1
+                    
+                    logger.info("Pre-match stored for light profile",
+                                user_id=user_id,
+                                job_id=job_id)
+                else:
+                    # For full profiles, proceed with detailed matching
+                    logger.info("Specialty match found, running detailed analysis",
+                              user_id=user_id,
+                              job_id=job_id)
+                    
+                    # Get resume text
+                    resume_text = get_resume_text_for_user(user_id, environment=environment)
+                    if not resume_text:
+                        logger.warning("No resume text available", user_id=user_id)
+                        continue
+                    
+                    # Run detailed AI matching
+                    match_result = compute_healthcare_match_score(
+                        resume_text=resume_text,
+                        job_description=job.description
+                    )
+                    
+                    if match_result:
+                        # Add type_of_match to the result
+                        match_result["type_of_match"] = "fit"
                         
-                        logger.info("Match found and stored",
-                                    user_id=user_id,
-                                    job_id=job_id,
-                                    score=score)
+                        score = float(match_result.get("overall_match_percentage", 0)) / 100.0
+                        
+                        if score > 0.5:
+                                # Store the match
+                            store_match_result(
+                                user_id=user_id,
+                                job_id=job_id,
+                                score=score,
+                                details=match_result,
+                                environment=environment
+                            )
+                            matches_found += 1
+                            
+                            logger.info("Match found and stored",
+                                        user_id=user_id,
+                                        job_id=job_id,
+                                        score=score)
                 
             except Exception as e:
                 logger.error("Error processing user",
@@ -365,7 +429,7 @@ def match_user_to_jobs_async(user_id: str, overwrite_existing: bool = False, env
     try:
         # Check if user is a physician before proceeding
         client = create_supabase_client(environment=environment)
-        profile_response = client.table("user_profile").select("profession").eq("user_id", user_id).single().execute()
+        profile_response = client.table("user_profile").select("profession, pronouns").eq("user_id", user_id).single().execute()
         
         if not profile_response.data:
             logger.warning("User profile not found, skipping matching", user_id=user_id)
@@ -373,10 +437,16 @@ def match_user_to_jobs_async(user_id: str, overwrite_existing: bool = False, env
             return
         
         user_profession = profile_response.data.get("profession")
+        user_pronouns = profile_response.data.get("pronouns")
+        
         if user_profession != "P":
             logger.info("User is not a physician, skipping job matching", user_id=user_id, profession=user_profession)
             update_user_matching_status(user_id, "finished", environment=environment)
             return
+        
+        # Check if this is a light profile (incomplete data)
+        is_light_profile = user_pronouns == "light"
+        logger.info("User profile type detected", user_id=user_id, pronouns=user_pronouns, is_light_profile=is_light_profile)
         # Get user specialties
         user_specialties = get_user_specialties(user_id, environment=environment)
         
@@ -388,11 +458,13 @@ def match_user_to_jobs_async(user_id: str, overwrite_existing: bool = False, env
                    user_id=user_id,
                    specialties=[s.get("name") for s in user_specialties])
         
-        # Get user's resume text once (to avoid multiple fetches)
-        resume_text = get_resume_text_for_user(user_id, environment=environment)
-        if not resume_text:
-            logger.warning("No resume text available for user", user_id=user_id)
-            return
+        # Get user's resume text once (to avoid multiple fetches) - but only for full profiles
+        resume_text = None
+        if not is_light_profile:
+            resume_text = get_resume_text_for_user(user_id, environment=environment)
+            if not resume_text:
+                logger.warning("No resume text available for user", user_id=user_id)
+                return
         
         matches_found = 0
         jobs_processed = 0
@@ -428,34 +500,60 @@ def match_user_to_jobs_async(user_id: str, overwrite_existing: bool = False, env
                     # Create Job object
                     job = Job.from_dict(job_data)
                     
-                    # Run detailed AI matching
-                    logger.info("Running detailed analysis for job match",
-                              user_id=user_id,
-                              job_id=job_id,
-                              job_title=job.title)
-                    
-                    match_result = compute_healthcare_match_score(
-                        resume_text=resume_text,
-                        job_description=job.description
-                    )
-                    
-                    if match_result:
-                        score = float(match_result.get("overall_match_percentage", 0)) / 100.0
+                    if is_light_profile:
+                        # For light profiles, create pre-match without AI analysis
+                        logger.info("Creating pre-match for light profile",
+                                  user_id=user_id,
+                                  job_id=job_id,
+                                  job_title=job.title)
                         
-                        # Store the match
+                        match_result = generate_pre_match_result()
+                        
+                        # Store the pre-match with score 0
                         store_match_result(
                             user_id=user_id,
                             job_id=job_id,
-                            score=score,
+                            score=0.0,
                             details=match_result,
                             environment=environment
                         )
                         matches_found += 1
                         
-                        logger.info("Match found and stored",
+                        logger.info("Pre-match stored for light profile",
                                     user_id=user_id,
-                                    job_id=job_id,
-                                    score=score)
+                                    job_id=job_id)
+                    else:
+                        # For full profiles, run detailed AI matching
+                        logger.info("Running detailed analysis for job match",
+                                  user_id=user_id,
+                                  job_id=job_id,
+                                  job_title=job.title)
+                        
+                        match_result = compute_healthcare_match_score(
+                            resume_text=resume_text,
+                            job_description=job.description
+                        )
+                        
+                        if match_result:
+                            # Add type_of_match to the result
+                            match_result["type_of_match"] = "fit"
+                            
+                            score = float(match_result.get("overall_match_percentage", 0)) / 100.0
+                            
+                            # Store the match
+                            store_match_result(
+                                user_id=user_id,
+                                job_id=job_id,
+                                score=score,
+                                details=match_result,
+                                environment=environment
+                            )
+                            matches_found += 1
+                            
+                            logger.info("Match found and stored",
+                                        user_id=user_id,
+                                        job_id=job_id,
+                                        score=score)
                     
                 except Exception as e:
                     logger.error("Error processing job for user",
